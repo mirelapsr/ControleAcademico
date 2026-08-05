@@ -1,11 +1,7 @@
 """
 schemas.py — CAMADA DE VALIDAÇÃO
 =================================
-Contratos de entrada/saída da API (Pydantic). Convenção adotada (igual ao
-template): para cada entidade "X":
-    XEntrada     -> o que o cliente manda no POST (sem id)
-    XAtualizacao -> mesmos campos, todos Optional (PATCH parcial)
-    XSaida       -> o que a API devolve (com id)
+Contratos de entrada/saída da API (Pydantic). 
 """
 
 from datetime import date

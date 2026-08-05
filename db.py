@@ -1,13 +1,9 @@
 """
 db.py — CAMADA DE BANCO
 =======================
-Única parte do projeto que "fala SQL". As rotas (main.py) nunca escrevem SQL:
-elas só chamam as funções daqui. Todas as consultas usam parâmetros via `%s`
-(nunca concatenação de valores vindos do cliente).
-
 Banco: MySQL (schema `Academic.sql` — database CAcademic).
 Driver: PyMySQL, com DictCursor (equivalente ao RealDictCursor do psycopg2 —
-as linhas voltam como dict, não como tupla).
+as linhas voltam como dict).
 
 Pré-requisito: o banco `CAcademic` já deve existir (rode `Academic.sql` uma
 vez, ou crie manualmente com `CREATE DATABASE CAcademic;`). A API, no
@@ -73,7 +69,6 @@ def cursor(commit: bool = False):
 
 # ===========================================================================
 # CRIAÇÃO DE TABELAS (idempotente — usa CREATE TABLE IF NOT EXISTS)
-# Espelha fielmente Academic.sql, apenas na ordem de dependência das FKs.
 # ===========================================================================
 
 def criar_tabelas() -> None:
