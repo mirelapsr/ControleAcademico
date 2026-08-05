@@ -4,7 +4,6 @@ API REST de controle acadêmico desenvolvida com **FastAPI**, **Pydantic** e **M
 
 O sistema permite gerenciar escolas, períodos, turmas, alunos, responsáveis, professores, matrículas, grades curriculares, avaliações, notas, frequência, boletins e boletos.
 
-> O projeto atual contém o backend e o banco de dados. Ainda não possui frontend.
 
 ## Tecnologias
 
@@ -20,9 +19,9 @@ O sistema permite gerenciar escolas, períodos, turmas, alunos, responsáveis, p
 
 ```text
 main.py          # Rotas da API
-db.py            # Conexão e consultas ao MySQL
+db.py            # Conexão e consultas ao MySQL(tabelas simples)
 schemas.py       # Validação dos dados
-Academic.sql     # Criação do banco e das tabelas
+controle.sql     # Desenvolvimento mais recente da estrutura do banco
 requirements.txt # Dependências Python
 .env             # Configuração do banco
 ```
@@ -88,7 +87,7 @@ DB_PORT=3306
 
 No MySQL Workbench:
 
-1. Abra o arquivo `Academic.sql`.
+1. Abra o arquivo `controle.sql`.
 2. Execute todo o script.
 3. Confirme que o banco `CAcademic` foi criado.
 
@@ -187,9 +186,6 @@ python -m uvicorn main:app --reload --port 8001
 
 A tabela `periodo` concentra as informações que antes pertenciam ao conceito de ano letivo. O campo `turma.AnoLetivo` foi mantido para facilitar consultas diretas por ano.
 
-## Autoria
-
-Projeto acadêmico desenvolvido por **Mirela Pinheiro Silva Rodrigues**.
 
 📌 Próximas Implementações:
 
