@@ -162,7 +162,7 @@ pip install -r requirements.txt
 
 ### Banco não encontrado
 
-Execute o arquivo `Academic.sql` no MySQL Workbench.
+Execute o arquivo `controle.sql` no MySQL Workbench.
 
 ### Erro de senha do MySQL
 
