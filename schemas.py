@@ -136,7 +136,7 @@ class PeriodoSaida(PeriodoEntrada):
 
 class MateriaEntrada(BaseModel):
     NomeMateria: str = Field(..., max_length=80)
-    CargaHoraria: Optional[int] = Field(None, gt=0)
+    CargaHoraria: int = Field(..., gt=0)
 
 
 class MateriaAtualizacao(BaseModel):
