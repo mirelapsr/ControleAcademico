@@ -534,7 +534,7 @@ def inserir_turma(nome, serie, turno, capacidade, escola_id, ano_letivo):
 def listar_turmas(escola_id: int | None = None):
     query = "SELECT * FROM turma WHERE 1=1"
     params = []
-    if escola_id:
+    if escola_id is not None:
         query += " AND Escola_idEscola = %s"
         params.append(escola_id)
     query += " ORDER BY idTurma"
@@ -583,7 +583,7 @@ def inserir_professor(nome, cpf, telefone, email, cep, endereco, situacao, escol
 def listar_professores(escola_id: int | None = None):
     query = "SELECT * FROM professor WHERE 1=1"
     params = []
-    if escola_id:
+    if escola_id is not None:
         query += " AND Escola_idEscola = %s"
         params.append(escola_id)
     query += " ORDER BY idProfessor"
@@ -631,10 +631,10 @@ def inserir_matricula(aluno_id, turma_id, data_matricula, situacao):
 def listar_matriculas(aluno_id: int | None = None, turma_id: int | None = None):
     query = "SELECT * FROM matricula WHERE 1=1"
     params = []
-    if aluno_id:
+    if aluno_id is not None:
         query += " AND Aluno_idAluno = %s"
         params.append(aluno_id)
-    if turma_id:
+    if turma_id is not None:
         query += " AND Turma_idTurma = %s"
         params.append(turma_id)
     query += " ORDER BY idMatricula"
@@ -730,7 +730,7 @@ def inserir_grade(turma_id, materia_id, professor_id):
 def listar_grades(turma_id: int | None = None):
     query = "SELECT * FROM grade_curricular WHERE 1=1"
     params = []
-    if turma_id:
+    if turma_id is not None:
         query += " AND Turma_idTurma = %s"
         params.append(turma_id)
     query += " ORDER BY idGrade"
@@ -770,10 +770,10 @@ def inserir_avaliacao(grade_id, periodo_id, tipo, nome, data_avaliacao, peso):
 def listar_avaliacoes(grade_id: int | None = None, periodo_id: int | None = None):
     query = "SELECT * FROM avaliacao WHERE 1=1"
     params = []
-    if grade_id:
+    if grade_id is not None:
         query += " AND Grade_idGrade = %s"
         params.append(grade_id)
-    if periodo_id:
+    if periodo_id is not None:
         query += " AND Periodo_idPeriodo = %s"
         params.append(periodo_id)
     query += " ORDER BY idAvaliacao"
@@ -820,10 +820,10 @@ def inserir_nota(avaliacao_id, aluno_id, valor):
 def listar_notas(avaliacao_id: int | None = None, aluno_id: int | None = None):
     query = "SELECT * FROM nota WHERE 1=1"
     params = []
-    if avaliacao_id:
+    if avaliacao_id is not None:
         query += " AND Avaliacao_idAvaliacao = %s"
         params.append(avaliacao_id)
-    if aluno_id:
+    if aluno_id is not None:
         query += " AND Aluno_idAluno = %s"
         params.append(aluno_id)
     query += " ORDER BY idNota"
@@ -871,10 +871,10 @@ def inserir_frequencia(grade_id, aluno_id, data_frequencia, situacao):
 def listar_frequencias(grade_id: int | None = None, aluno_id: int | None = None):
     query = "SELECT * FROM frequencia WHERE 1=1"
     params = []
-    if grade_id:
+    if grade_id is not None:
         query += " AND Grade_idGrade = %s"
         params.append(grade_id)
-    if aluno_id:
+    if aluno_id is not None:
         query += " AND Aluno_idAluno = %s"
         params.append(aluno_id)
     query += " ORDER BY idFrequencia"
@@ -925,10 +925,10 @@ def inserir_boletim(aluno_id, periodo_id, materia_id, media_final, situacao):
 def listar_boletins(aluno_id: int | None = None, periodo_id: int | None = None):
     query = "SELECT * FROM boletim WHERE 1=1"
     params = []
-    if aluno_id:
+    if aluno_id is not None:
         query += " AND Aluno_idAluno = %s"
         params.append(aluno_id)
-    if periodo_id:
+    if periodo_id is not None:
         query += " AND Periodo_idPeriodo = %s"
         params.append(periodo_id)
     query += " ORDER BY idBoletim"
@@ -976,7 +976,7 @@ def inserir_boleto(numero_boleto, aluno_id, competencia, valor, data_vencimento,
 def listar_boletos(aluno_id: int | None = None, situacao: str | None = None):
     query = "SELECT * FROM boleto WHERE 1=1"
     params = []
-    if aluno_id:
+    if aluno_id is not None:
         query += " AND Aluno_idAluno = %s"
         params.append(aluno_id)
     if situacao:
