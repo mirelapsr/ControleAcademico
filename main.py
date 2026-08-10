@@ -15,7 +15,8 @@ Tratamento de erros:
 
 from typing import List, Optional
 
-import pymysql
+import psycopg2
+import psycopg2.errors
 from fastapi import FastAPI, HTTPException, Query, status
 
 import db
@@ -70,17 +71,32 @@ def campos_para_update(payload) -> dict:
     return campos
 
 
-def tratar_integrity_error(exc: pymysql.err.IntegrityError):
-    """Traduz IntegrityError do MySQL em HTTPException.
-    1062 = Duplicate entry (UNIQUE) -> 409
-    1451/1452 = violação de FK -> 400
+def tratar_integrity_error(e: Exception):
     """
-    codigo = exc.args[0] if exc.args else None
-    mensagem = exc.args[1] if len(exc.args) > 1 else str(exc)
-    if codigo == 1062:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Registro duplicado: {mensagem}")
-    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Erro de integridade referencial: {mensagem}")
-
+    Traduz erros do PostgreSQL (psycopg2) para exceções HTTP do FastAPI.
+    """
+    # Se o erro for uma trigger (RAISE EXCEPTION no PL/pgSQL)
+    if isinstance(e, psycopg2.errors.RaiseException):
+        raise HTTPException(status_code=409, detail=str(e).strip())
+    
+    #violação de constraint (UNIQUE, FOREIGN KEY, CHECK)
+    elif isinstance(e, psycopg2.IntegrityError):
+        codigo = e.pgcode
+        
+        if codigo == '23505':  # UniqueViolation
+            raise HTTPException(status_code=409, detail="Conflito: Registro já existente ou duplicado.")
+        
+        elif codigo == '23503':  # ForeignKeyViolation
+            raise HTTPException(status_code=400, detail="Erro de referência: O registro vinculado não existe ou está em uso.")
+            
+        elif codigo == '23514':  # CheckViolation
+            raise HTTPException(status_code=400, detail="Erro de validação: Os dados não cumprem as regras do banco.")
+            
+        else:
+            raise HTTPException(status_code=400, detail="Erro de integridade de dados.")
+            
+    # Se for qualquer outro erro de banco não mapeado
+    raise HTTPException(status_code=400, detail=f"Erro no banco de dados: {str(e)}")
 
 # ===========================================================================
 # ESCOLA
