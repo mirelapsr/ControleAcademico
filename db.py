@@ -34,9 +34,9 @@ def conectar():
         host=CONFIG["host"],
         user=CONFIG["user"],
         password=CONFIG["password"],
-        dbname=CONFIG["database"], # Postgres usa dbname em vez de database
+        dbname=CONFIG["database"], 
         port=CONFIG["port"],
-        cursor_factory=RealDictCursor # Muda de DictCursor para RealDictCursor
+        cursor_factory=RealDictCursor 
     )
 
 
@@ -286,19 +286,28 @@ def inserir_escola(nome, codigo_inep, cnpj, endereco, telefone, email):
             (nome, codigo_inep, cnpj, endereco, telefone, email),
         )
         novo_id = cur.fetchone()["idescola"]
-        cur.execute("SELECT * FROM escola WHERE idEscola = %s", (novo_id,))
+        cur.execute("""SELECT idEscola AS "idEscola", NomeEscola AS "NomeEscola", CodigoInep AS "CodigoInep",
+                Cnpj AS "Cnpj", EnderecoEscola AS "EnderecoEscola", TelefoneEscola AS "TelefoneEscola",
+                EmailEscola AS "EmailEscola", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+                FROM escola WHERE idEscola = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_escolas():
     with cursor() as cur:
-        cur.execute("SELECT * FROM escola ORDER BY idEscola")
+        cur.execute("""SELECT idEscola AS "idEscola", NomeEscola AS "NomeEscola", CodigoInep AS "CodigoInep",
+                Cnpj AS "Cnpj", EnderecoEscola AS "EnderecoEscola", TelefoneEscola AS "TelefoneEscola",
+                EmailEscola AS "EmailEscola", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+                FROM escola ORDER BY idEscola""")
         return cur.fetchall()
 
 
 def buscar_escola(id_escola):
     with cursor() as cur:
-        cur.execute("SELECT * FROM escola WHERE idEscola = %s", (id_escola,))
+        cur.execute("""SELECT idEscola AS "idEscola", NomeEscola AS "NomeEscola", CodigoInep AS "CodigoInep",
+                Cnpj AS "Cnpj", EnderecoEscola AS "EnderecoEscola", TelefoneEscola AS "TelefoneEscola",
+                EmailEscola AS "EmailEscola", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+                FROM escola WHERE idEscola = %s""", (id_escola,))
         return cur.fetchone()
 
 
@@ -306,7 +315,10 @@ def atualizar_escola(id_escola, campos: dict):
     set_clause = ", ".join(f"{c} = %s" for c in campos)
     with cursor(commit=True) as cur:
         cur.execute(f"UPDATE escola SET {set_clause} WHERE idEscola = %s", (*campos.values(), id_escola))
-        cur.execute("SELECT * FROM escola WHERE idEscola = %s", (id_escola,))
+        cur.execute("""SELECT idEscola AS "idEscola", NomeEscola AS "NomeEscola", CodigoInep AS "CodigoInep",
+                Cnpj AS "Cnpj", EnderecoEscola AS "EnderecoEscola", TelefoneEscola AS "TelefoneEscola",
+                EmailEscola AS "EmailEscola", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+                FROM escola WHERE idEscola = %s""", (id_escola,))
         return cur.fetchone()
 
 
@@ -328,19 +340,28 @@ def inserir_periodo(ano, nome_periodo, data_inicio, data_fim, situacao):
             (ano, nome_periodo, data_inicio, data_fim, situacao),
         )
         novo_id = cur.fetchone()["idperiodo"]
-        cur.execute("SELECT * FROM periodo WHERE idPeriodo = %s", (novo_id,))
+        cur.execute("""SELECT idPeriodo AS "idPeriodo", Ano AS "Ano", NomePeriodo AS "NomePeriodo",
+                DataInicio AS "DataInicio", DataFim AS "DataFim", Situacao AS "Situacao",
+                CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+                FROM periodo WHERE idPeriodo = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_periodos():
     with cursor() as cur:
-        cur.execute("SELECT * FROM periodo ORDER BY idPeriodo")
+        cur.execute("""SELECT idPeriodo AS "idPeriodo", Ano AS "Ano", NomePeriodo AS "NomePeriodo",
+                DataInicio AS "DataInicio", DataFim AS "DataFim", Situacao AS "Situacao",
+                CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+                FROM periodo ORDER BY idPeriodo""")
         return cur.fetchall()
 
 
 def buscar_periodo(id_periodo):
     with cursor() as cur:
-        cur.execute("SELECT * FROM periodo WHERE idPeriodo = %s", (id_periodo,))
+        cur.execute("""SELECT idPeriodo AS "idPeriodo", Ano AS "Ano", NomePeriodo AS "NomePeriodo",
+                DataInicio AS "DataInicio", DataFim AS "DataFim", Situacao AS "Situacao",
+                CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+                FROM periodo WHERE idPeriodo = %s""", (id_periodo,))
         return cur.fetchone()
 
 
@@ -348,7 +369,10 @@ def atualizar_periodo(id_periodo, campos: dict):
     set_clause = ", ".join(f"{c} = %s" for c in campos)
     with cursor(commit=True) as cur:
         cur.execute(f"UPDATE periodo SET {set_clause} WHERE idPeriodo = %s", (*campos.values(), id_periodo))
-        cur.execute("SELECT * FROM periodo WHERE idPeriodo = %s", (id_periodo,))
+        cur.execute("""SELECT idPeriodo AS "idPeriodo", Ano AS "Ano", NomePeriodo AS "NomePeriodo",
+                DataInicio AS "DataInicio", DataFim AS "DataFim", Situacao AS "Situacao",
+                CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+                FROM periodo WHERE idPeriodo = %s""", (id_periodo,))
         return cur.fetchone()
 
 
@@ -369,19 +393,22 @@ def inserir_materia(nome, carga_horaria):
             (nome, carga_horaria)
         )
         novo_id = cur.fetchone()["idmateria"]
-        cur.execute("SELECT * FROM materia WHERE idMateria = %s", (novo_id,))
+        cur.execute("""SELECT idMateria AS "idMateria", NomeMateria AS "NomeMateria", CargaHoraria AS "CargaHoraria"
+                FROM materia WHERE idMateria = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_materias():
     with cursor() as cur:
-        cur.execute("SELECT * FROM materia ORDER BY idMateria")
+        cur.execute("""SELECT idMateria AS "idMateria", NomeMateria AS "NomeMateria", CargaHoraria AS "CargaHoraria"
+                FROM materia ORDER BY idMateria""")
         return cur.fetchall()
 
 
 def buscar_materia(id_materia):
     with cursor() as cur:
-        cur.execute("SELECT * FROM materia WHERE idMateria = %s", (id_materia,))
+        cur.execute("""SELECT idMateria AS "idMateria", NomeMateria AS "NomeMateria", CargaHoraria AS "CargaHoraria"
+                FROM materia WHERE idMateria = %s""", (id_materia,))
         return cur.fetchone()
 
 
@@ -389,7 +416,8 @@ def atualizar_materia(id_materia, campos: dict):
     set_clause = ", ".join(f"{c} = %s" for c in campos)
     with cursor(commit=True) as cur:
         cur.execute(f"UPDATE materia SET {set_clause} WHERE idMateria = %s", (*campos.values(), id_materia))
-        cur.execute("SELECT * FROM materia WHERE idMateria = %s", (id_materia,))
+        cur.execute("""SELECT idMateria AS "idMateria", NomeMateria AS "NomeMateria", CargaHoraria AS "CargaHoraria"
+                FROM materia WHERE idMateria = %s""", (id_materia,))
         return cur.fetchone()
 
 
@@ -411,19 +439,28 @@ def inserir_responsavel(nome, cpf, telefone, email, cep, endereco):
             (nome, cpf, telefone, email, cep, endereco),
         )
         novo_id = cur.fetchone()["idresponsavel"]
-        cur.execute("SELECT * FROM responsavel WHERE idResponsavel = %s", (novo_id,))
+        cur.execute("""SELECT idResponsavel AS "idResponsavel", NomeResp AS "NomeResp", CpfResp AS "CpfResp",
+                TelefoneResp AS "TelefoneResp", EmailResp AS "EmailResp", CepResp AS "CepResp",
+                EnderecoResp AS "EnderecoResp", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+                FROM responsavel WHERE idResponsavel = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_responsaveis():
     with cursor() as cur:
-        cur.execute("SELECT * FROM responsavel ORDER BY idResponsavel")
+        cur.execute("""SELECT idResponsavel AS "idResponsavel", NomeResp AS "NomeResp", CpfResp AS "CpfResp",
+                TelefoneResp AS "TelefoneResp", EmailResp AS "EmailResp", CepResp AS "CepResp",
+                EnderecoResp AS "EnderecoResp", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+                FROM responsavel ORDER BY idResponsavel""")
         return cur.fetchall()
 
 
 def buscar_responsavel(id_responsavel):
     with cursor() as cur:
-        cur.execute("SELECT * FROM responsavel WHERE idResponsavel = %s", (id_responsavel,))
+        cur.execute("""SELECT idResponsavel AS "idResponsavel", NomeResp AS "NomeResp", CpfResp AS "CpfResp",
+                TelefoneResp AS "TelefoneResp", EmailResp AS "EmailResp", CepResp AS "CepResp",
+                EnderecoResp AS "EnderecoResp", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+                FROM responsavel WHERE idResponsavel = %s""", (id_responsavel,))
         return cur.fetchone()
 
 
@@ -434,7 +471,10 @@ def atualizar_responsavel(id_responsavel, campos: dict):
             f"UPDATE responsavel SET {set_clause} WHERE idResponsavel = %s",
             (*campos.values(), id_responsavel),
         )
-        cur.execute("SELECT * FROM responsavel WHERE idResponsavel = %s", (id_responsavel,))
+        cur.execute("""SELECT idResponsavel AS "idResponsavel", NomeResp AS "NomeResp", CpfResp AS "CpfResp",
+                TelefoneResp AS "TelefoneResp", EmailResp AS "EmailResp", CepResp AS "CepResp",
+                EnderecoResp AS "EnderecoResp", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+                FROM responsavel WHERE idResponsavel = %s""", (id_responsavel,))
         return cur.fetchone()
 
 
@@ -457,11 +497,19 @@ def inserir_aluno(numero_matricula, nome, data_nascimento, cpf, telefone, email,
             (numero_matricula, nome, data_nascimento, cpf, telefone, email, cep, endereco, situacao),
         )
         novo_id = cur.fetchone()["idaluno"]
-        cur.execute("SELECT * FROM aluno WHERE idAluno = %s", (novo_id,))
+        cur.execute("""SELECT idAluno AS "idAluno", NumeroMatricula AS "NumeroMatricula", NomeAluno AS "NomeAluno",
+                DataNascimento AS "DataNascimento", CpfAluno AS "CpfAluno", TelefoneAluno AS "TelefoneAluno",
+                EmailAluno AS "EmailAluno", CepAluno AS "CepAluno", EnderecoAluno AS "EnderecoAluno",
+                Situacao AS "Situacao", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+                FROM aluno WHERE idAluno = %s""", (novo_id,))
         return cur.fetchone()
 
 def listar_alunos(situacao: str | None = None, nome: str | None = None):
-    query = "SELECT * FROM aluno WHERE 1=1"
+    query = """SELECT idAluno AS "idAluno", NumeroMatricula AS "NumeroMatricula", NomeAluno AS "NomeAluno",
+                DataNascimento AS "DataNascimento", CpfAluno AS "CpfAluno", TelefoneAluno AS "TelefoneAluno",
+                EmailAluno AS "EmailAluno", CepAluno AS "CepAluno", EnderecoAluno AS "EnderecoAluno",
+                Situacao AS "Situacao", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+                FROM aluno WHERE 1=1"""
     params = []
     if situacao:
         query += " AND Situacao = %s"
@@ -477,7 +525,11 @@ def listar_alunos(situacao: str | None = None, nome: str | None = None):
 
 def buscar_aluno(id_aluno):
     with cursor() as cur:
-        cur.execute("SELECT * FROM aluno WHERE idAluno = %s", (id_aluno,))
+        cur.execute("""SELECT idAluno AS "idAluno", NumeroMatricula AS "NumeroMatricula", NomeAluno AS "NomeAluno",
+                DataNascimento AS "DataNascimento", CpfAluno AS "CpfAluno", TelefoneAluno AS "TelefoneAluno",
+                EmailAluno AS "EmailAluno", CepAluno AS "CepAluno", EnderecoAluno AS "EnderecoAluno",
+                Situacao AS "Situacao", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+                FROM aluno WHERE idAluno = %s""", (id_aluno,))
         return cur.fetchone()
 
 
@@ -485,7 +537,11 @@ def atualizar_aluno(id_aluno, campos: dict):
     set_clause = ", ".join(f"{c} = %s" for c in campos)
     with cursor(commit=True) as cur:
         cur.execute(f"UPDATE aluno SET {set_clause} WHERE idAluno = %s", (*campos.values(), id_aluno))
-        cur.execute("SELECT * FROM aluno WHERE idAluno = %s", (id_aluno,))
+        cur.execute("""SELECT idAluno AS "idAluno", NumeroMatricula AS "NumeroMatricula", NomeAluno AS "NomeAluno",
+                DataNascimento AS "DataNascimento", CpfAluno AS "CpfAluno", TelefoneAluno AS "TelefoneAluno",
+                EmailAluno AS "EmailAluno", CepAluno AS "CepAluno", EnderecoAluno AS "EnderecoAluno",
+                Situacao AS "Situacao", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+                FROM aluno WHERE idAluno = %s""", (id_aluno,))
         return cur.fetchone()
 
 
@@ -499,19 +555,24 @@ def excluir_aluno(id_aluno) -> bool:
 
 def escola_atual_do_aluno(id_aluno):
     with cursor() as cur:
-        cur.execute("SELECT * FROM vw_aluno_escola_atual WHERE idAluno = %s", (id_aluno,))
+        cur.execute("""SELECT idAluno AS "idAluno", idEscola AS "idEscola", NomeEscola AS "NomeEscola"
+                FROM vw_aluno_escola_atual WHERE idAluno = %s""", (id_aluno,))
         return cur.fetchone()
 
 
 def responsaveis_financeiros_do_aluno(id_aluno):
     with cursor() as cur:
-        cur.execute("SELECT * FROM vw_aluno_responsavel_financeiro WHERE Aluno_idAluno = %s", (id_aluno,))
+        cur.execute("""SELECT Aluno_idAluno AS "Aluno_idAluno", idResponsavel AS "idResponsavel", NomeResp AS "NomeResp",
+                EmailResp AS "EmailResp", TelefoneResp AS "TelefoneResp"
+                FROM vw_aluno_responsavel_financeiro WHERE Aluno_idAluno = %s""", (id_aluno,))
         return cur.fetchall()
 
 
 def medias_dinamicas_do_aluno(id_aluno):
     with cursor() as cur:
-        cur.execute("SELECT * FROM vw_aluno_media_dinamica WHERE Aluno_idAluno = %s", (id_aluno,))
+        cur.execute("""SELECT Aluno_idAluno AS "Aluno_idAluno", Periodo_idPeriodo AS "Periodo_idPeriodo", Materia_idMateria AS "Materia_idMateria",
+                MediaCalculada AS "MediaCalculada", QtdAvaliacoesContabilizadas AS "QtdAvaliacoesContabilizadas"
+                FROM vw_aluno_media_dinamica WHERE Aluno_idAluno = %s""", (id_aluno,))
         return cur.fetchall()
 
 
@@ -527,12 +588,18 @@ def inserir_turma(nome, serie, turno, capacidade, escola_id, ano_letivo):
             (nome, serie, turno, capacidade, escola_id, ano_letivo),
         )
         novo_id = cur.fetchone()["idturma"]
-        cur.execute("SELECT * FROM turma WHERE idTurma = %s", (novo_id,))
+        cur.execute("""SELECT idTurma AS "idTurma", NomeTurma AS "NomeTurma", Serie AS "Serie",
+                Turno AS "Turno", Capacidade AS "Capacidade", Escola_idEscola AS "Escola_idEscola",
+                AnoLetivo AS "AnoLetivo", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+                FROM turma WHERE idTurma = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_turmas(escola_id: int | None = None):
-    query = "SELECT * FROM turma WHERE 1=1"
+    query = """SELECT idTurma AS "idTurma", NomeTurma AS "NomeTurma", Serie AS "Serie",
+                Turno AS "Turno", Capacidade AS "Capacidade", Escola_idEscola AS "Escola_idEscola",
+                AnoLetivo AS "AnoLetivo", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+                FROM turma WHERE 1=1"""
     params = []
     if escola_id:
         query += " AND Escola_idEscola = %s"
@@ -545,7 +612,10 @@ def listar_turmas(escola_id: int | None = None):
 
 def buscar_turma(id_turma):
     with cursor() as cur:
-        cur.execute("SELECT * FROM turma WHERE idTurma = %s", (id_turma,))
+        cur.execute("""SELECT idTurma AS "idTurma", NomeTurma AS "NomeTurma", Serie AS "Serie",
+                Turno AS "Turno", Capacidade AS "Capacidade", Escola_idEscola AS "Escola_idEscola",
+                AnoLetivo AS "AnoLetivo", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+                FROM turma WHERE idTurma = %s""", (id_turma,))
         return cur.fetchone()
 
 
@@ -553,7 +623,10 @@ def atualizar_turma(id_turma, campos: dict):
     set_clause = ", ".join(f"{c} = %s" for c in campos)
     with cursor(commit=True) as cur:
         cur.execute(f"UPDATE turma SET {set_clause} WHERE idTurma = %s", (*campos.values(), id_turma))
-        cur.execute("SELECT * FROM turma WHERE idTurma = %s", (id_turma,))
+        cur.execute("""SELECT idTurma AS "idTurma", NomeTurma AS "NomeTurma", Serie AS "Serie",
+                Turno AS "Turno", Capacidade AS "Capacidade", Escola_idEscola AS "Escola_idEscola",
+                AnoLetivo AS "AnoLetivo", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+                FROM turma WHERE idTurma = %s""", (id_turma,))
         return cur.fetchone()
 
 
@@ -576,12 +649,20 @@ def inserir_professor(nome, cpf, telefone, email, cep, endereco, situacao, escol
             (nome, cpf, telefone, email, cep, endereco, situacao, escola_id),
         )
         novo_id = cur.fetchone()["idprofessor"]
-        cur.execute("SELECT * FROM professor WHERE idProfessor = %s", (novo_id,))
+        cur.execute("""SELECT idProfessor AS "idProfessor", NomeProf AS "NomeProf", CpfProf AS "CpfProf",
+                TelefoneProf AS "TelefoneProf", EmailProf AS "EmailProf", CepProf AS "CepProf",
+                EnderecoProf AS "EnderecoProf", Situacao AS "Situacao", Escola_idEscola AS "Escola_idEscola",
+                CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+                FROM professor WHERE idProfessor = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_professores(escola_id: int | None = None):
-    query = "SELECT * FROM professor WHERE 1=1"
+    query = """SELECT idProfessor AS "idProfessor", NomeProf AS "NomeProf", CpfProf AS "CpfProf",
+                TelefoneProf AS "TelefoneProf", EmailProf AS "EmailProf", CepProf AS "CepProf",
+                EnderecoProf AS "EnderecoProf", Situacao AS "Situacao", Escola_idEscola AS "Escola_idEscola",
+                CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+                FROM professor WHERE 1=1"""
     params = []
     if escola_id:
         query += " AND Escola_idEscola = %s"
@@ -594,7 +675,11 @@ def listar_professores(escola_id: int | None = None):
 
 def buscar_professor(id_professor):
     with cursor() as cur:
-        cur.execute("SELECT * FROM professor WHERE idProfessor = %s", (id_professor,))
+        cur.execute("""SELECT idProfessor AS "idProfessor", NomeProf AS "NomeProf", CpfProf AS "CpfProf",
+                TelefoneProf AS "TelefoneProf", EmailProf AS "EmailProf", CepProf AS "CepProf",
+                EnderecoProf AS "EnderecoProf", Situacao AS "Situacao", Escola_idEscola AS "Escola_idEscola",
+                CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+                FROM professor WHERE idProfessor = %s""", (id_professor,))
         return cur.fetchone()
 
 
@@ -602,7 +687,11 @@ def atualizar_professor(id_professor, campos: dict):
     set_clause = ", ".join(f"{c} = %s" for c in campos)
     with cursor(commit=True) as cur:
         cur.execute(f"UPDATE professor SET {set_clause} WHERE idProfessor = %s", (*campos.values(), id_professor))
-        cur.execute("SELECT * FROM professor WHERE idProfessor = %s", (id_professor,))
+        cur.execute("""SELECT idProfessor AS "idProfessor", NomeProf AS "NomeProf", CpfProf AS "CpfProf",
+                TelefoneProf AS "TelefoneProf", EmailProf AS "EmailProf", CepProf AS "CepProf",
+                EnderecoProf AS "EnderecoProf", Situacao AS "Situacao", Escola_idEscola AS "Escola_idEscola",
+                CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+                FROM professor WHERE idProfessor = %s""", (id_professor,))
         return cur.fetchone()
 
 
@@ -624,12 +713,18 @@ def inserir_matricula(aluno_id, turma_id, data_matricula, situacao):
             (aluno_id, turma_id, data_matricula, situacao),
         )
         novo_id = cur.fetchone()["idmatricula"]
-        cur.execute("SELECT * FROM matricula WHERE idMatricula = %s", (novo_id,))
+        cur.execute("""SELECT idMatricula AS "idMatricula", Aluno_idAluno AS "Aluno_idAluno", Turma_idTurma AS "Turma_idTurma",
+                DataMatricula AS "DataMatricula", Situacao AS "Situacao", CriadoEm AS "CriadoEm",
+                AtualizadoEm AS "AtualizadoEm"
+                FROM matricula WHERE idMatricula = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_matriculas(aluno_id: int | None = None, turma_id: int | None = None):
-    query = "SELECT * FROM matricula WHERE 1=1"
+    query = """SELECT idMatricula AS "idMatricula", Aluno_idAluno AS "Aluno_idAluno", Turma_idTurma AS "Turma_idTurma",
+                DataMatricula AS "DataMatricula", Situacao AS "Situacao", CriadoEm AS "CriadoEm",
+                AtualizadoEm AS "AtualizadoEm"
+                FROM matricula WHERE 1=1"""
     params = []
     if aluno_id:
         query += " AND Aluno_idAluno = %s"
@@ -645,7 +740,10 @@ def listar_matriculas(aluno_id: int | None = None, turma_id: int | None = None):
 
 def buscar_matricula(id_matricula):
     with cursor() as cur:
-        cur.execute("SELECT * FROM matricula WHERE idMatricula = %s", (id_matricula,))
+        cur.execute("""SELECT idMatricula AS "idMatricula", Aluno_idAluno AS "Aluno_idAluno", Turma_idTurma AS "Turma_idTurma",
+                DataMatricula AS "DataMatricula", Situacao AS "Situacao", CriadoEm AS "CriadoEm",
+                AtualizadoEm AS "AtualizadoEm"
+                FROM matricula WHERE idMatricula = %s""", (id_matricula,))
         return cur.fetchone()
 
 
@@ -653,7 +751,10 @@ def atualizar_matricula(id_matricula, campos: dict):
     set_clause = ", ".join(f"{c} = %s" for c in campos)
     with cursor(commit=True) as cur:
         cur.execute(f"UPDATE matricula SET {set_clause} WHERE idMatricula = %s", (*campos.values(), id_matricula))
-        cur.execute("SELECT * FROM matricula WHERE idMatricula = %s", (id_matricula,))
+        cur.execute("""SELECT idMatricula AS "idMatricula", Aluno_idAluno AS "Aluno_idAluno", Turma_idTurma AS "Turma_idTurma",
+                DataMatricula AS "DataMatricula", Situacao AS "Situacao", CriadoEm AS "CriadoEm",
+                AtualizadoEm AS "AtualizadoEm"
+                FROM matricula WHERE idMatricula = %s""", (id_matricula,))
         return cur.fetchone()
 
 
@@ -675,7 +776,9 @@ def vincular_responsavel(aluno_id, responsavel_id, tipo, financeiro):
             (aluno_id, responsavel_id, tipo, financeiro),
         )
         cur.execute(
-            "SELECT * FROM alunoresponsavel WHERE Aluno_idAluno = %s AND Responsavel_idResponsavel = %s",
+            """SELECT Aluno_idAluno AS "Aluno_idAluno", Responsavel_idResponsavel AS "Responsavel_idResponsavel", TipoResponsavel AS "TipoResponsavel",
+                ResponsavelFinanceiro AS "ResponsavelFinanceiro"
+                FROM alunoresponsavel WHERE Aluno_idAluno = %s AND Responsavel_idResponsavel = %s""",
             (aluno_id, responsavel_id),
         )
         return cur.fetchone()
@@ -684,7 +787,11 @@ def vincular_responsavel(aluno_id, responsavel_id, tipo, financeiro):
 def listar_responsaveis_do_aluno(aluno_id):
     with cursor() as cur:
         cur.execute(
-            """SELECT ar.*, r.NomeResp, r.EmailResp, r.TelefoneResp
+            """SELECT ar.Aluno_idAluno AS "Aluno_idAluno",
+                      ar.Responsavel_idResponsavel AS "Responsavel_idResponsavel",
+                      ar.TipoResponsavel AS "TipoResponsavel",
+                      ar.ResponsavelFinanceiro AS "ResponsavelFinanceiro",
+                      r.NomeResp AS "NomeResp", r.EmailResp AS "EmailResp", r.TelefoneResp AS "TelefoneResp"
                FROM alunoresponsavel ar
                JOIN responsavel r ON r.idResponsavel = ar.Responsavel_idResponsavel
                WHERE ar.Aluno_idAluno = %s""",
@@ -696,7 +803,9 @@ def listar_responsaveis_do_aluno(aluno_id):
 def buscar_vinculo(aluno_id, responsavel_id):
     with cursor() as cur:
         cur.execute(
-            "SELECT * FROM alunoresponsavel WHERE Aluno_idAluno = %s AND Responsavel_idResponsavel = %s",
+            """SELECT Aluno_idAluno AS "Aluno_idAluno", Responsavel_idResponsavel AS "Responsavel_idResponsavel", TipoResponsavel AS "TipoResponsavel",
+                ResponsavelFinanceiro AS "ResponsavelFinanceiro"
+                FROM alunoresponsavel WHERE Aluno_idAluno = %s AND Responsavel_idResponsavel = %s""",
             (aluno_id, responsavel_id),
         )
         return cur.fetchone()
@@ -723,12 +832,16 @@ def inserir_grade(turma_id, materia_id, professor_id):
             (turma_id, materia_id, professor_id),
         )
         novo_id = cur.fetchone()["idgrade"]
-        cur.execute("SELECT * FROM grade_curricular WHERE idGrade = %s", (novo_id,))
+        cur.execute("""SELECT idGrade AS "idGrade", Turma_idTurma AS "Turma_idTurma", Materia_idMateria AS "Materia_idMateria",
+                Professor_idProfessor AS "Professor_idProfessor"
+                FROM grade_curricular WHERE idGrade = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_grades(turma_id: int | None = None):
-    query = "SELECT * FROM grade_curricular WHERE 1=1"
+    query = """SELECT idGrade AS "idGrade", Turma_idTurma AS "Turma_idTurma", Materia_idMateria AS "Materia_idMateria",
+                Professor_idProfessor AS "Professor_idProfessor"
+                FROM grade_curricular WHERE 1=1"""
     params = []
     if turma_id:
         query += " AND Turma_idTurma = %s"
@@ -741,7 +854,9 @@ def listar_grades(turma_id: int | None = None):
 
 def buscar_grade(id_grade):
     with cursor() as cur:
-        cur.execute("SELECT * FROM grade_curricular WHERE idGrade = %s", (id_grade,))
+        cur.execute("""SELECT idGrade AS "idGrade", Turma_idTurma AS "Turma_idTurma", Materia_idMateria AS "Materia_idMateria",
+                Professor_idProfessor AS "Professor_idProfessor"
+                FROM grade_curricular WHERE idGrade = %s""", (id_grade,))
         return cur.fetchone()
 
 
@@ -763,12 +878,18 @@ def inserir_avaliacao(grade_id, periodo_id, tipo, nome, data_avaliacao, peso):
             (grade_id, periodo_id, tipo, nome, data_avaliacao, peso),
         )
         novo_id = cur.fetchone()["idavaliacao"]
-        cur.execute("SELECT * FROM avaliacao WHERE idAvaliacao = %s", (novo_id,))
+        cur.execute("""SELECT idAvaliacao AS "idAvaliacao", Grade_idGrade AS "Grade_idGrade", Periodo_idPeriodo AS "Periodo_idPeriodo",
+                Tipo AS "Tipo", NomeAvaliacao AS "NomeAvaliacao", DataAvaliacao AS "DataAvaliacao",
+                Peso AS "Peso"
+                FROM avaliacao WHERE idAvaliacao = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_avaliacoes(grade_id: int | None = None, periodo_id: int | None = None):
-    query = "SELECT * FROM avaliacao WHERE 1=1"
+    query = """SELECT idAvaliacao AS "idAvaliacao", Grade_idGrade AS "Grade_idGrade", Periodo_idPeriodo AS "Periodo_idPeriodo",
+                Tipo AS "Tipo", NomeAvaliacao AS "NomeAvaliacao", DataAvaliacao AS "DataAvaliacao",
+                Peso AS "Peso"
+                FROM avaliacao WHERE 1=1"""
     params = []
     if grade_id:
         query += " AND Grade_idGrade = %s"
@@ -784,7 +905,10 @@ def listar_avaliacoes(grade_id: int | None = None, periodo_id: int | None = None
 
 def buscar_avaliacao(id_avaliacao):
     with cursor() as cur:
-        cur.execute("SELECT * FROM avaliacao WHERE idAvaliacao = %s", (id_avaliacao,))
+        cur.execute("""SELECT idAvaliacao AS "idAvaliacao", Grade_idGrade AS "Grade_idGrade", Periodo_idPeriodo AS "Periodo_idPeriodo",
+                Tipo AS "Tipo", NomeAvaliacao AS "NomeAvaliacao", DataAvaliacao AS "DataAvaliacao",
+                Peso AS "Peso"
+                FROM avaliacao WHERE idAvaliacao = %s""", (id_avaliacao,))
         return cur.fetchone()
 
 
@@ -792,7 +916,10 @@ def atualizar_avaliacao(id_avaliacao, campos: dict):
     set_clause = ", ".join(f"{c} = %s" for c in campos)
     with cursor(commit=True) as cur:
         cur.execute(f"UPDATE avaliacao SET {set_clause} WHERE idAvaliacao = %s", (*campos.values(), id_avaliacao))
-        cur.execute("SELECT * FROM avaliacao WHERE idAvaliacao = %s", (id_avaliacao,))
+        cur.execute("""SELECT idAvaliacao AS "idAvaliacao", Grade_idGrade AS "Grade_idGrade", Periodo_idPeriodo AS "Periodo_idPeriodo",
+                Tipo AS "Tipo", NomeAvaliacao AS "NomeAvaliacao", DataAvaliacao AS "DataAvaliacao",
+                Peso AS "Peso"
+                FROM avaliacao WHERE idAvaliacao = %s""", (id_avaliacao,))
         return cur.fetchone()
 
 
@@ -813,11 +940,15 @@ def inserir_nota(avaliacao_id, aluno_id, valor):
             (avaliacao_id, aluno_id, valor),
         )
         novo_id = cur.fetchone()["idnota"]
-        cur.execute("SELECT * FROM nota WHERE idNota = %s", (novo_id,))
+        cur.execute("""SELECT idNota AS "idNota", Avaliacao_idAvaliacao AS "Avaliacao_idAvaliacao", Aluno_idAluno AS "Aluno_idAluno",
+                ValorNota AS "ValorNota"
+                FROM nota WHERE idNota = %s""", (novo_id,))
         return cur.fetchone()
 
 def listar_notas(avaliacao_id: int | None = None, aluno_id: int | None = None):
-    query = "SELECT * FROM nota WHERE 1=1"
+    query = """SELECT idNota AS "idNota", Avaliacao_idAvaliacao AS "Avaliacao_idAvaliacao", Aluno_idAluno AS "Aluno_idAluno",
+                ValorNota AS "ValorNota"
+                FROM nota WHERE 1=1"""
     params = []
     if avaliacao_id:
         query += " AND Avaliacao_idAvaliacao = %s"
@@ -833,7 +964,9 @@ def listar_notas(avaliacao_id: int | None = None, aluno_id: int | None = None):
 
 def buscar_nota(id_nota):
     with cursor() as cur:
-        cur.execute("SELECT * FROM nota WHERE idNota = %s", (id_nota,))
+        cur.execute("""SELECT idNota AS "idNota", Avaliacao_idAvaliacao AS "Avaliacao_idAvaliacao", Aluno_idAluno AS "Aluno_idAluno",
+                ValorNota AS "ValorNota"
+                FROM nota WHERE idNota = %s""", (id_nota,))
         return cur.fetchone()
 
 
@@ -841,7 +974,9 @@ def atualizar_nota(id_nota, campos: dict):
     set_clause = ", ".join(f"{c} = %s" for c in campos)
     with cursor(commit=True) as cur:
         cur.execute(f"UPDATE nota SET {set_clause} WHERE idNota = %s", (*campos.values(), id_nota))
-        cur.execute("SELECT * FROM nota WHERE idNota = %s", (id_nota,))
+        cur.execute("""SELECT idNota AS "idNota", Avaliacao_idAvaliacao AS "Avaliacao_idAvaliacao", Aluno_idAluno AS "Aluno_idAluno",
+                ValorNota AS "ValorNota"
+                FROM nota WHERE idNota = %s""", (id_nota,))
         return cur.fetchone()
 
 
@@ -863,12 +998,16 @@ def inserir_frequencia(grade_id, aluno_id, data_frequencia, situacao):
             (grade_id, aluno_id, data_frequencia, situacao),
         )
         novo_id = cur.fetchone()["idfrequencia"]
-        cur.execute("SELECT * FROM frequencia WHERE idFrequencia = %s", (novo_id,))
+        cur.execute("""SELECT idFrequencia AS "idFrequencia", Grade_idGrade AS "Grade_idGrade", Aluno_idAluno AS "Aluno_idAluno",
+                DataFrequencia AS "DataFrequencia", Situacao AS "Situacao"
+                FROM frequencia WHERE idFrequencia = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_frequencias(grade_id: int | None = None, aluno_id: int | None = None):
-    query = "SELECT * FROM frequencia WHERE 1=1"
+    query = """SELECT idFrequencia AS "idFrequencia", Grade_idGrade AS "Grade_idGrade", Aluno_idAluno AS "Aluno_idAluno",
+                DataFrequencia AS "DataFrequencia", Situacao AS "Situacao"
+                FROM frequencia WHERE 1=1"""
     params = []
     if grade_id:
         query += " AND Grade_idGrade = %s"
@@ -884,7 +1023,9 @@ def listar_frequencias(grade_id: int | None = None, aluno_id: int | None = None)
 
 def buscar_frequencia(id_frequencia):
     with cursor() as cur:
-        cur.execute("SELECT * FROM frequencia WHERE idFrequencia = %s", (id_frequencia,))
+        cur.execute("""SELECT idFrequencia AS "idFrequencia", Grade_idGrade AS "Grade_idGrade", Aluno_idAluno AS "Aluno_idAluno",
+                DataFrequencia AS "DataFrequencia", Situacao AS "Situacao"
+                FROM frequencia WHERE idFrequencia = %s""", (id_frequencia,))
         return cur.fetchone()
 
 
@@ -895,7 +1036,9 @@ def atualizar_frequencia(id_frequencia, campos: dict):
             f"UPDATE frequencia SET {set_clause} WHERE idFrequencia = %s",
             (*campos.values(), id_frequencia),
         )
-        cur.execute("SELECT * FROM frequencia WHERE idFrequencia = %s", (id_frequencia,))
+        cur.execute("""SELECT idFrequencia AS "idFrequencia", Grade_idGrade AS "Grade_idGrade", Aluno_idAluno AS "Aluno_idAluno",
+                DataFrequencia AS "DataFrequencia", Situacao AS "Situacao"
+                FROM frequencia WHERE idFrequencia = %s""", (id_frequencia,))
         return cur.fetchone()
 
 
@@ -917,12 +1060,16 @@ def inserir_boletim(aluno_id, periodo_id, materia_id, media_final, situacao):
             (aluno_id, periodo_id, materia_id, media_final, situacao),
         )
         novo_id = cur.fetchone()["idboletim"]
-        cur.execute("SELECT * FROM boletim WHERE idBoletim = %s", (novo_id,))
+        cur.execute("""SELECT idBoletim AS "idBoletim", Aluno_idAluno AS "Aluno_idAluno", Periodo_idPeriodo AS "Periodo_idPeriodo",
+                Materia_idMateria AS "Materia_idMateria", MediaFinal AS "MediaFinal", Situacao AS "Situacao"
+                FROM boletim WHERE idBoletim = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_boletins(aluno_id: int | None = None, periodo_id: int | None = None):
-    query = "SELECT * FROM boletim WHERE 1=1"
+    query = """SELECT idBoletim AS "idBoletim", Aluno_idAluno AS "Aluno_idAluno", Periodo_idPeriodo AS "Periodo_idPeriodo",
+                Materia_idMateria AS "Materia_idMateria", MediaFinal AS "MediaFinal", Situacao AS "Situacao"
+                FROM boletim WHERE 1=1"""
     params = []
     if aluno_id:
         query += " AND Aluno_idAluno = %s"
@@ -938,7 +1085,9 @@ def listar_boletins(aluno_id: int | None = None, periodo_id: int | None = None):
 
 def buscar_boletim(id_boletim):
     with cursor() as cur:
-        cur.execute("SELECT * FROM boletim WHERE idBoletim = %s", (id_boletim,))
+        cur.execute("""SELECT idBoletim AS "idBoletim", Aluno_idAluno AS "Aluno_idAluno", Periodo_idPeriodo AS "Periodo_idPeriodo",
+                Materia_idMateria AS "Materia_idMateria", MediaFinal AS "MediaFinal", Situacao AS "Situacao"
+                FROM boletim WHERE idBoletim = %s""", (id_boletim,))
         return cur.fetchone()
 
 
@@ -946,7 +1095,9 @@ def atualizar_boletim(id_boletim, campos: dict):
     set_clause = ", ".join(f"{c} = %s" for c in campos)
     with cursor(commit=True) as cur:
         cur.execute(f"UPDATE boletim SET {set_clause} WHERE idBoletim = %s", (*campos.values(), id_boletim))
-        cur.execute("SELECT * FROM boletim WHERE idBoletim = %s", (id_boletim,))
+        cur.execute("""SELECT idBoletim AS "idBoletim", Aluno_idAluno AS "Aluno_idAluno", Periodo_idPeriodo AS "Periodo_idPeriodo",
+                Materia_idMateria AS "Materia_idMateria", MediaFinal AS "MediaFinal", Situacao AS "Situacao"
+                FROM boletim WHERE idBoletim = %s""", (id_boletim,))
         return cur.fetchone()
 
 
@@ -968,12 +1119,18 @@ def inserir_boleto(numero_boleto, aluno_id, competencia, valor, data_vencimento,
             (numero_boleto, aluno_id, competencia, valor, data_vencimento, situacao),
         )
         novo_id = cur.fetchone()["idboleto"]
-        cur.execute("SELECT * FROM boleto WHERE idBoleto = %s", (novo_id,))
+        cur.execute("""SELECT idBoleto AS "idBoleto", NumeroBoleto AS "NumeroBoleto", Aluno_idAluno AS "Aluno_idAluno",
+                Competencia AS "Competencia", ValorMensalidade AS "ValorMensalidade", DataVencimento AS "DataVencimento",
+                DataPagamento AS "DataPagamento", Situacao AS "Situacao"
+                FROM boleto WHERE idBoleto = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_boletos(aluno_id: int | None = None, situacao: str | None = None):
-    query = "SELECT * FROM boleto WHERE 1=1"
+    query = """SELECT idBoleto AS "idBoleto", NumeroBoleto AS "NumeroBoleto", Aluno_idAluno AS "Aluno_idAluno",
+                Competencia AS "Competencia", ValorMensalidade AS "ValorMensalidade", DataVencimento AS "DataVencimento",
+                DataPagamento AS "DataPagamento", Situacao AS "Situacao"
+                FROM boleto WHERE 1=1"""
     params = []
     if aluno_id:
         query += " AND Aluno_idAluno = %s"
@@ -989,7 +1146,10 @@ def listar_boletos(aluno_id: int | None = None, situacao: str | None = None):
 
 def buscar_boleto(id_boleto):
     with cursor() as cur:
-        cur.execute("SELECT * FROM boleto WHERE idBoleto = %s", (id_boleto,))
+        cur.execute("""SELECT idBoleto AS "idBoleto", NumeroBoleto AS "NumeroBoleto", Aluno_idAluno AS "Aluno_idAluno",
+                Competencia AS "Competencia", ValorMensalidade AS "ValorMensalidade", DataVencimento AS "DataVencimento",
+                DataPagamento AS "DataPagamento", Situacao AS "Situacao"
+                FROM boleto WHERE idBoleto = %s""", (id_boleto,))
         return cur.fetchone()
 
 
@@ -997,7 +1157,10 @@ def atualizar_boleto(id_boleto, campos: dict):
     set_clause = ", ".join(f"{c} = %s" for c in campos)
     with cursor(commit=True) as cur:
         cur.execute(f"UPDATE boleto SET {set_clause} WHERE idBoleto = %s", (*campos.values(), id_boleto))
-        cur.execute("SELECT * FROM boleto WHERE idBoleto = %s", (id_boleto,))
+        cur.execute("""SELECT idBoleto AS "idBoleto", NumeroBoleto AS "NumeroBoleto", Aluno_idAluno AS "Aluno_idAluno",
+                Competencia AS "Competencia", ValorMensalidade AS "ValorMensalidade", DataVencimento AS "DataVencimento",
+                DataPagamento AS "DataPagamento", Situacao AS "Situacao"
+                FROM boleto WHERE idBoleto = %s""", (id_boleto,))
         return cur.fetchone()
 
 
