@@ -1,12 +1,10 @@
 """
 db.py — CAMADA DE BANCO
 =======================
-Banco: MySQL (schema `Academic.sql` — database CAcademic).
-Driver: PyMySQL, com DictCursor (equivalente ao RealDictCursor do psycopg2 —
-as linhas voltam como dict).
+Banco: PostgreSQL (database CAcademic).
+Driver: psycopg2, com RealDictCursor (as linhas voltam como dict).
 
-Pré-requisito: o banco `CAcademic` já deve existir (rode `Academic.sql` uma
-vez, ou crie manualmente com `CREATE DATABASE CAcademic;`). A API, no
+Pré-requisito: o banco `CAcademic` já deve existir. A API, no
 startup, cria as TABELAS (`criar_tabelas`) usando `CREATE TABLE IF NOT
 EXISTS` — portanto é seguro reiniciar a API sem perder dados.
 """
@@ -22,10 +20,10 @@ load_dotenv()
 
 CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
-    "user": os.getenv("DB_USER", "root"),
+    "user": os.getenv("DB_USER", "postgres"),       
     "password": os.getenv("DB_PASSWORD", ""),
     "database": os.getenv("DB_NAME", "CAcademic"),
-    "port": int(os.getenv("DB_PORT", "3306")),
+    "port": int(os.getenv("DB_PORT", "5432")),      
 }
 
 
@@ -71,193 +69,193 @@ def cursor(commit: bool = False):
 def criar_tabelas() -> None:
     ddl = """
     CREATE TABLE IF NOT EXISTS escola (
-        idEscola        SERIAL PRIMARY KEY,
-        NomeEscola      VARCHAR(150) NOT NULL,
-        CodigoInep      VARCHAR(8),
-        Cnpj            VARCHAR(14),
-        EnderecoEscola  VARCHAR(200),
-        TelefoneEscola  VARCHAR(13),
-        EmailEscola     VARCHAR(100)
+        idescola        SERIAL PRIMARY KEY,
+        nomeescola      VARCHAR(150) NOT NULL,
+        codigoinep      VARCHAR(8),
+        cnpj            VARCHAR(14),
+        enderecoescola  VARCHAR(200),
+        telefoneescola  VARCHAR(13),
+        emailescola     VARCHAR(100)
     );
 
     CREATE TABLE IF NOT EXISTS periodo (
-        idPeriodo       SERIAL PRIMARY KEY,
-        Ano             SMALLINT NOT NULL,
-        NomePeriodo     VARCHAR(30) NOT NULL,
-        DataInicio      DATE NOT NULL,
-        DataFim         DATE NOT NULL,
-        Situacao        VARCHAR(50) CHECK (Situacao IN ('Ativo','Encerrado')) NOT NULL DEFAULT 'Ativo'
+        idperiodo       SERIAL PRIMARY KEY,
+        ano             SMALLINT NOT NULL,
+        nomeperiodo     VARCHAR(30) NOT NULL,
+        datainicio      DATE NOT NULL,
+        datafim         DATE NOT NULL,
+        situacao        VARCHAR(50) CHECK (situacao IN ('Ativo','Encerrado')) NOT NULL DEFAULT 'Ativo'
     );
 
     CREATE TABLE IF NOT EXISTS materia (
-        idMateria       SERIAL PRIMARY KEY,
-        NomeMateria     VARCHAR(80) NOT NULL,
-        CargaHoraria    INTEGER CHECK (CargaHoraria > 0),
-        CONSTRAINT uq_materia_nome UNIQUE (NomeMateria)
+        idmateria       SERIAL PRIMARY KEY,
+        nomemateria     VARCHAR(80) NOT NULL,
+        cargahoraria    INTEGER CHECK (cargahoraria > 0),
+        CONSTRAINT uq_materia_nome UNIQUE (nomemateria)
     );
 
     CREATE TABLE IF NOT EXISTS responsavel (
-        idResponsavel   SERIAL PRIMARY KEY,
-        NomeResp        VARCHAR(100) NOT NULL,
-        CpfResp         VARCHAR(11),
-        TelefoneResp    VARCHAR(13),
-        EmailResp       VARCHAR(100),
-        CepResp         VARCHAR(8),
-        EnderecoResp    VARCHAR(200)
+        idresponsavel   SERIAL PRIMARY KEY,
+        nomeresp        VARCHAR(100) NOT NULL,
+        cpfresp         VARCHAR(11),
+        telefoneresp    VARCHAR(13),
+        emailresp       VARCHAR(100),
+        cepresp         VARCHAR(8),
+        enderecoresp    VARCHAR(200)
     );
 
     CREATE TABLE IF NOT EXISTS aluno (
-        idAluno         SERIAL PRIMARY KEY,
-        NumeroMatricula VARCHAR(20) NOT NULL,
-        NomeAluno       VARCHAR(100) NOT NULL,
-        DataNascimento  DATE NOT NULL,
-        CpfAluno        VARCHAR(11),
-        TelefoneAluno   VARCHAR(13),
-        EmailAluno      VARCHAR(100),
-        CepAluno        VARCHAR(8),
-        EnderecoAluno   VARCHAR(200),
-        Situacao        VARCHAR(50) CHECK (Situacao IN ('Ativo','Inativo','Transferido')) NOT NULL DEFAULT 'Ativo'
+        idaluno         SERIAL PRIMARY KEY,
+        numeromatricula VARCHAR(20) NOT NULL,
+        nomealuno       VARCHAR(100) NOT NULL,
+        datanascimento  DATE NOT NULL,
+        cpfaluno        VARCHAR(11),
+        telefonealuno   VARCHAR(13),
+        emailaluno      VARCHAR(100),
+        cepaluno        VARCHAR(8),
+        enderecoaluno   VARCHAR(200),
+        situacao        VARCHAR(50) CHECK (situacao IN ('Ativo','Inativo','Transferido')) NOT NULL DEFAULT 'Ativo'
     );
 
     CREATE TABLE IF NOT EXISTS turma (
-        idTurma              SERIAL PRIMARY KEY,
-        NomeTurma            VARCHAR(30) NOT NULL,
-        Serie                VARCHAR(45),
-        Turno                VARCHAR(50) CHECK (Turno IN ('Manha','Tarde','Noite','Integral')) NOT NULL,
-        Capacidade           INT,
-        Escola_idEscola      INT NOT NULL,
-        AnoLetivo            SMALLINT NOT NULL,
-        CONSTRAINT fk_turma_escola FOREIGN KEY (Escola_idEscola) REFERENCES escola(idEscola)
+        idturma              SERIAL PRIMARY KEY,
+        nometurma            VARCHAR(30) NOT NULL,
+        serie                VARCHAR(45),
+        turno                VARCHAR(50) CHECK (turno IN ('Manha','Tarde','Noite','Integral')) NOT NULL,
+        capacidade           INT,
+        escola_idescola      INT NOT NULL,
+        anoletivo            SMALLINT NOT NULL,
+        CONSTRAINT fk_turma_escola FOREIGN KEY (escola_idescola) REFERENCES escola(idescola)
     );
 
     CREATE TABLE IF NOT EXISTS professor (
-        idProfessor     SERIAL PRIMARY KEY,
-        NomeProf        VARCHAR(100) NOT NULL,
-        CpfProf         VARCHAR(11),
-        TelefoneProf    VARCHAR(13),
-        EmailProf       VARCHAR(100),
-        CepProf         VARCHAR(8),
-        EnderecoProf    VARCHAR(200),
-        Situacao        VARCHAR(50) CHECK (Situacao IN ('Ativo','Inativo')) NOT NULL DEFAULT 'Ativo',
-        Escola_idEscola INT NOT NULL,
-        CONSTRAINT fk_professor_escola FOREIGN KEY (Escola_idEscola) REFERENCES escola(idEscola)
+        idprofessor     SERIAL PRIMARY KEY,
+        nomeprof        VARCHAR(100) NOT NULL,
+        cpfprof         VARCHAR(11),
+        telefoneprof    VARCHAR(13),
+        emailprof       VARCHAR(100),
+        cepprof         VARCHAR(8),
+        enderecoprof    VARCHAR(200),
+        situacao        VARCHAR(50) CHECK (situacao IN ('Ativo','Inativo')) NOT NULL DEFAULT 'Ativo',
+        escola_idescola INT NOT NULL,
+        CONSTRAINT fk_professor_escola FOREIGN KEY (escola_idescola) REFERENCES escola(idescola)
     );
 
     CREATE TABLE IF NOT EXISTS alunoresponsavel (
-        Aluno_idAluno             INT NOT NULL,
-        Responsavel_idResponsavel INT NOT NULL,
-        TipoResponsavel           VARCHAR(50) CHECK (TipoResponsavel IN ('Pai','Mae','ResponsavelLegal','Outro')) NOT NULL,
-        ResponsavelFinanceiro     BOOLEAN NOT NULL DEFAULT FALSE,
-        PRIMARY KEY (Aluno_idAluno, Responsavel_idResponsavel),
-        CONSTRAINT fk_ar_aluno FOREIGN KEY (Aluno_idAluno) REFERENCES aluno(idAluno),
-        CONSTRAINT fk_ar_responsavel FOREIGN KEY (Responsavel_idResponsavel) REFERENCES responsavel(idResponsavel)
+        aluno_idaluno             INT NOT NULL,
+        responsavel_idresponsavel INT NOT NULL,
+        tiporesponsavel           VARCHAR(50) CHECK (tiporesponsavel IN ('Pai','Mae','ResponsavelLegal','Outro')) NOT NULL,
+        responsavelfinanceiro     BOOLEAN NOT NULL DEFAULT FALSE,
+        PRIMARY KEY (aluno_idaluno, responsavel_idresponsavel),
+        CONSTRAINT fk_ar_aluno FOREIGN KEY (aluno_idaluno) REFERENCES aluno(idaluno),
+        CONSTRAINT fk_ar_responsavel FOREIGN KEY (responsavel_idresponsavel) REFERENCES responsavel(idresponsavel)
     );
 
     CREATE TABLE IF NOT EXISTS matricula (
-        idMatricula     SERIAL PRIMARY KEY,
-        Aluno_idAluno   INT NOT NULL,
-        Turma_idTurma   INT NOT NULL,
-        DataMatricula   DATE NOT NULL,
-        Situacao        VARCHAR(50) CHECK (Situacao IN ('Ativa','Cancelada','Transferida','Concluida')) NOT NULL DEFAULT 'Ativa',
-        CONSTRAINT fk_matricula_aluno FOREIGN KEY (Aluno_idAluno) REFERENCES aluno(idAluno),
-        CONSTRAINT fk_matricula_turma FOREIGN KEY (Turma_idTurma) REFERENCES turma(idTurma)
+        idmatricula     SERIAL PRIMARY KEY,
+        aluno_idaluno   INT NOT NULL,
+        turma_idturma   INT NOT NULL,
+        datamatricula   DATE NOT NULL,
+        situacao        VARCHAR(50) CHECK (situacao IN ('Ativa','Cancelada','Transferida','Concluida')) NOT NULL DEFAULT 'Ativa',
+        CONSTRAINT fk_matricula_aluno FOREIGN KEY (aluno_idaluno) REFERENCES aluno(idaluno),
+        CONSTRAINT fk_matricula_turma FOREIGN KEY (turma_idturma) REFERENCES turma(idturma)
     );
 
     CREATE TABLE IF NOT EXISTS grade_curricular (
-        idGrade               SERIAL PRIMARY KEY,
-        Turma_idTurma         INT NOT NULL,
-        Materia_idMateria     INT NOT NULL,
-        Professor_idProfessor INT NOT NULL,
-        CONSTRAINT fk_grade_turma FOREIGN KEY (Turma_idTurma) REFERENCES turma(idTurma),
-        CONSTRAINT fk_grade_materia FOREIGN KEY (Materia_idMateria) REFERENCES materia(idMateria),
-        CONSTRAINT fk_grade_professor FOREIGN KEY (Professor_idProfessor) REFERENCES professor(idProfessor),
-        CONSTRAINT uq_turma_materia UNIQUE (Turma_idTurma, Materia_idMateria)
+        idgrade               SERIAL PRIMARY KEY,
+        turma_idturma         INT NOT NULL,
+        materia_idmateria     INT NOT NULL,
+        professor_idprofessor INT NOT NULL,
+        CONSTRAINT fk_grade_turma FOREIGN KEY (turma_idturma) REFERENCES turma(idturma),
+        CONSTRAINT fk_grade_materia FOREIGN KEY (materia_idmateria) REFERENCES materia(idmateria),
+        CONSTRAINT fk_grade_professor FOREIGN KEY (professor_idprofessor) REFERENCES professor(idprofessor),
+        CONSTRAINT uq_turma_materia UNIQUE (turma_idturma, materia_idmateria)
     );
 
     CREATE TABLE IF NOT EXISTS avaliacao (
-        idAvaliacao       SERIAL PRIMARY KEY,
-        Grade_idGrade     INT NOT NULL,
-        Periodo_idPeriodo INT NOT NULL,
-        Tipo              VARCHAR(50) CHECK (Tipo IN ('Prova','Trabalho','Projeto','Recuperacao')) NOT NULL,
-        NomeAvaliacao     VARCHAR(100) NOT NULL,
-        DataAvaliacao     DATE NOT NULL,
-        Peso              DECIMAL(4,2) NOT NULL DEFAULT 1.00,
-        CONSTRAINT fk_avaliacao_grade FOREIGN KEY (Grade_idGrade) REFERENCES grade_curricular(idGrade),
-        CONSTRAINT fk_avaliacao_periodo FOREIGN KEY (Periodo_idPeriodo) REFERENCES periodo(idPeriodo)
+        idavaliacao       SERIAL PRIMARY KEY,
+        grade_idgrade     INT NOT NULL,
+        periodo_idperiodo INT NOT NULL,
+        tipo              VARCHAR(50) CHECK (tipo IN ('Prova','Trabalho','Projeto','Recuperacao')) NOT NULL,
+        nomeavaliacao     VARCHAR(100) NOT NULL,
+        dataavaliacao     DATE NOT NULL,
+        peso              DECIMAL(4,2) NOT NULL DEFAULT 1.00,
+        CONSTRAINT fk_avaliacao_grade FOREIGN KEY (grade_idgrade) REFERENCES grade_curricular(idgrade),
+        CONSTRAINT fk_avaliacao_periodo FOREIGN KEY (periodo_idperiodo) REFERENCES periodo(idperiodo)
     );
 
     CREATE TABLE IF NOT EXISTS nota (
-        idNota                SERIAL PRIMARY KEY,
-        Avaliacao_idAvaliacao INT NOT NULL,
-        Aluno_idAluno         INT NOT NULL,
-        ValorNota             DECIMAL(4,2) NOT NULL,
-        CONSTRAINT fk_nota_avaliacao FOREIGN KEY (Avaliacao_idAvaliacao) REFERENCES avaliacao(idAvaliacao),
-        CONSTRAINT fk_nota_aluno FOREIGN KEY (Aluno_idAluno) REFERENCES aluno(idAluno),
-        CONSTRAINT uq_nota_avaliacao_aluno UNIQUE (Avaliacao_idAvaliacao, Aluno_idAluno)
+        idnota                SERIAL PRIMARY KEY,
+        avaliacao_idavaliacao INT NOT NULL,
+        aluno_idaluno         INT NOT NULL,
+        valornota             DECIMAL(4,2) NOT NULL,
+        CONSTRAINT fk_nota_avaliacao FOREIGN KEY (avaliacao_idavaliacao) REFERENCES avaliacao(idavaliacao),
+        CONSTRAINT fk_nota_aluno FOREIGN KEY (aluno_idaluno) REFERENCES aluno(idaluno),
+        CONSTRAINT uq_nota_avaliacao_aluno UNIQUE (avaliacao_idavaliacao, aluno_idaluno)
     );
 
     CREATE TABLE IF NOT EXISTS frequencia (
-        idFrequencia    SERIAL PRIMARY KEY,
-        Grade_idGrade   INT NOT NULL,
-        Aluno_idAluno   INT NOT NULL,
-        DataFrequencia  DATE NOT NULL,
-        Situacao        VARCHAR(50) CHECK (Situacao IN ('Presente','Falta','FaltaJustificada')) NOT NULL,
-        CONSTRAINT fk_frequencia_grade FOREIGN KEY (Grade_idGrade) REFERENCES grade_curricular(idGrade),
-        CONSTRAINT fk_frequencia_aluno FOREIGN KEY (Aluno_idAluno) REFERENCES aluno(idAluno),
-        CONSTRAINT uq_freq_aluno_grade_data UNIQUE (Grade_idGrade, Aluno_idAluno, DataFrequencia)
+        idfrequencia    SERIAL PRIMARY KEY,
+        grade_idgrade   INT NOT NULL,
+        aluno_idaluno   INT NOT NULL,
+        datafrequencia  DATE NOT NULL,
+        situacao        VARCHAR(50) CHECK (situacao IN ('Presente','Falta','FaltaJustificada')) NOT NULL,
+        CONSTRAINT fk_frequencia_grade FOREIGN KEY (grade_idgrade) REFERENCES grade_curricular(idgrade),
+        CONSTRAINT fk_frequencia_aluno FOREIGN KEY (aluno_idaluno) REFERENCES aluno(idaluno),
+        CONSTRAINT uq_freq_aluno_grade_data UNIQUE (grade_idgrade, aluno_idaluno, datafrequencia)
     );
 
     CREATE TABLE IF NOT EXISTS boletim (
-        idBoletim         SERIAL PRIMARY KEY,
-        Aluno_idAluno     INT NOT NULL,
-        Periodo_idPeriodo INT NOT NULL,
-        Materia_idMateria INT NOT NULL,
-        MediaFinal        DECIMAL(4,2) NOT NULL,
-        Situacao          VARCHAR(50) CHECK (Situacao IN ('Aberto','Fechado')) NOT NULL DEFAULT 'Aberto',
-        CONSTRAINT fk_boletim_aluno FOREIGN KEY (Aluno_idAluno) REFERENCES aluno(idAluno),
-        CONSTRAINT fk_boletim_periodo FOREIGN KEY (Periodo_idPeriodo) REFERENCES periodo(idPeriodo),
-        CONSTRAINT fk_boletim_materia FOREIGN KEY (Materia_idMateria) REFERENCES materia(idMateria),
-        CONSTRAINT uq_boletim_aluno_periodo_materia UNIQUE (Aluno_idAluno, Periodo_idPeriodo, Materia_idMateria)
+        idboletim         SERIAL PRIMARY KEY,
+        aluno_idaluno     INT NOT NULL,
+        periodo_idperiodo INT NOT NULL,
+        materia_idmateria INT NOT NULL,
+        mediafinal        DECIMAL(4,2) NOT NULL,
+        situacao          VARCHAR(50) CHECK (situacao IN ('Aberto','Fechado')) NOT NULL DEFAULT 'Aberto',
+        CONSTRAINT fk_boletim_aluno FOREIGN KEY (aluno_idaluno) REFERENCES aluno(idaluno),
+        CONSTRAINT fk_boletim_periodo FOREIGN KEY (periodo_idperiodo) REFERENCES periodo(idperiodo),
+        CONSTRAINT fk_boletim_materia FOREIGN KEY (materia_idmateria) REFERENCES materia(idmateria),
+        CONSTRAINT uq_boletim_aluno_periodo_materia UNIQUE (aluno_idaluno, periodo_idperiodo, materia_idmateria)
     );
 
     CREATE TABLE IF NOT EXISTS boleto (
-        idBoleto         SERIAL PRIMARY KEY,
-        NumeroBoleto     VARCHAR(50) NOT NULL,
-        Aluno_idAluno    INT NOT NULL,
-        Competencia      CHAR(7) NOT NULL,
-        ValorMensalidade DECIMAL(10,2) NOT NULL,
-        DataVencimento   DATE NOT NULL,
-        DataPagamento    DATE,
-        Situacao         VARCHAR(50) CHECK (Situacao IN ('Pendente','Pago','Atrasado','Cancelado')) NOT NULL DEFAULT 'Pendente',
-        CONSTRAINT fk_boleto_aluno FOREIGN KEY (Aluno_idAluno) REFERENCES aluno(idAluno)
+        idboleto         SERIAL PRIMARY KEY,
+        numeroboleto     VARCHAR(50) NOT NULL,
+        aluno_idaluno    INT NOT NULL,
+        competencia      CHAR(7) NOT NULL,
+        valormensalidade DECIMAL(10,2) NOT NULL,
+        datavencimento   DATE NOT NULL,
+        datapagamento    DATE,
+        situacao         VARCHAR(50) CHECK (situacao IN ('Pendente','Pago','Atrasado','Cancelado')) NOT NULL DEFAULT 'Pendente',
+        CONSTRAINT fk_boleto_aluno FOREIGN KEY (aluno_idaluno) REFERENCES aluno(idaluno)
     );
     """
 
     views = """
     CREATE OR REPLACE VIEW vw_aluno_escola_atual AS
-    SELECT a.idAluno, e.idEscola, e.NomeEscola
+    SELECT a.idaluno, e.idescola, e.nomeescola
     FROM aluno a
-    JOIN matricula m ON m.Aluno_idAluno = a.idAluno AND m.Situacao = 'Ativa'
-    JOIN turma t ON t.idTurma = m.Turma_idTurma
-    JOIN escola e ON e.idEscola = t.Escola_idEscola;
+    JOIN matricula m ON m.aluno_idaluno = a.idaluno AND m.situacao = 'Ativa'
+    JOIN turma t ON t.idturma = m.turma_idturma
+    JOIN escola e ON e.idescola = t.escola_idescola;
 
     CREATE OR REPLACE VIEW vw_aluno_responsavel_financeiro AS
-    SELECT ar.Aluno_idAluno, r.idResponsavel, r.NomeResp, r.EmailResp, r.TelefoneResp
+    SELECT ar.aluno_idaluno, r.idresponsavel, r.nomeresp, r.emailresp, r.telefoneresp
     FROM alunoresponsavel ar
-    JOIN responsavel r ON r.idResponsavel = ar.Responsavel_idResponsavel
-    WHERE ar.ResponsavelFinanceiro = TRUE;
+    JOIN responsavel r ON r.idresponsavel = ar.responsavel_idresponsavel
+    WHERE ar.responsavelfinanceiro = TRUE;
 
     CREATE OR REPLACE VIEW vw_aluno_media_dinamica AS
     SELECT
-        n.Aluno_idAluno,
-        a.Periodo_idPeriodo,
-        g.Materia_idMateria,
-        ROUND(SUM(n.ValorNota * a.Peso) / SUM(a.Peso), 2) AS MediaCalculada,
-        COUNT(n.idNota) AS QtdAvaliacoesContabilizadas
+        n.aluno_idaluno,
+        a.periodo_idperiodo,
+        g.materia_idmateria,
+        ROUND(SUM(n.valornota * a.peso) / SUM(a.peso), 2) AS mediacalculada,
+        COUNT(n.idnota) AS qtdavaliacoescontabilizadas
     FROM nota n
-    JOIN avaliacao a ON a.idAvaliacao = n.Avaliacao_idAvaliacao
-    JOIN grade_curricular g ON g.idGrade = a.Grade_idGrade
-    GROUP BY n.Aluno_idAluno, a.Periodo_idPeriodo, g.Materia_idMateria;
+    JOIN avaliacao a ON a.idavaliacao = n.avaliacao_idavaliacao
+    JOIN grade_curricular g ON g.idgrade = a.grade_idgrade
+    GROUP BY n.aluno_idaluno, a.periodo_idperiodo, g.materia_idmateria;
     """
 
     conn = conectar()
@@ -281,50 +279,50 @@ def criar_tabelas() -> None:
 def inserir_escola(nome, codigo_inep, cnpj, endereco, telefone, email):
     with cursor(commit=True) as cur:
         cur.execute(
-            """INSERT INTO escola (NomeEscola, CodigoInep, Cnpj, EnderecoEscola, TelefoneEscola, EmailEscola)
-               VALUES (%s, %s, %s, %s, %s, %s) RETURNING idEscola""",
+            """INSERT INTO escola (nomeescola, codigoinep, cnpj, enderecoescola, telefoneescola, emailescola)
+               VALUES (%s, %s, %s, %s, %s, %s) RETURNING idescola""",
             (nome, codigo_inep, cnpj, endereco, telefone, email),
         )
         novo_id = cur.fetchone()["idescola"]
-        cur.execute("""SELECT idEscola AS "idEscola", NomeEscola AS "NomeEscola", CodigoInep AS "CodigoInep",
-                Cnpj AS "Cnpj", EnderecoEscola AS "EnderecoEscola", TelefoneEscola AS "TelefoneEscola",
-                EmailEscola AS "EmailEscola", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
-                FROM escola WHERE idEscola = %s""", (novo_id,))
+        cur.execute("""SELECT idescola AS "idEscola", nomeescola AS "NomeEscola", codigoinep AS "CodigoInep",
+                cnpj AS "Cnpj", enderecoescola AS "EnderecoEscola", telefoneescola AS "TelefoneEscola",
+                emailescola AS "EmailEscola", criadoem AS "CriadoEm", atualizadoem AS "AtualizadoEm"
+                FROM escola WHERE idescola = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_escolas():
     with cursor() as cur:
-        cur.execute("""SELECT idEscola AS "idEscola", NomeEscola AS "NomeEscola", CodigoInep AS "CodigoInep",
-                Cnpj AS "Cnpj", EnderecoEscola AS "EnderecoEscola", TelefoneEscola AS "TelefoneEscola",
-                EmailEscola AS "EmailEscola", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
-                FROM escola ORDER BY idEscola""")
+        cur.execute("""SELECT idescola AS "idEscola", nomeescola AS "NomeEscola", codigoinep AS "CodigoInep",
+                cnpj AS "Cnpj", enderecoescola AS "EnderecoEscola", telefoneescola AS "TelefoneEscola",
+                emailescola AS "EmailEscola", criadoem AS "CriadoEm", atualizadoem AS "AtualizadoEm"
+                FROM escola ORDER BY idescola""")
         return cur.fetchall()
 
 
 def buscar_escola(id_escola):
     with cursor() as cur:
-        cur.execute("""SELECT idEscola AS "idEscola", NomeEscola AS "NomeEscola", CodigoInep AS "CodigoInep",
-                Cnpj AS "Cnpj", EnderecoEscola AS "EnderecoEscola", TelefoneEscola AS "TelefoneEscola",
-                EmailEscola AS "EmailEscola", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
-                FROM escola WHERE idEscola = %s""", (id_escola,))
+        cur.execute("""SELECT idescola AS "idEscola", nomeescola AS "NomeEscola", codigoinep AS "CodigoInep",
+                cnpj AS "Cnpj", enderecoescola AS "EnderecoEscola", telefoneescola AS "TelefoneEscola",
+                emailescola AS "EmailEscola", criadoem AS "CriadoEm", atualizadoem AS "AtualizadoEm"
+                FROM escola WHERE idescola = %s""", (id_escola,))
         return cur.fetchone()
 
 
 def atualizar_escola(id_escola, campos: dict):
-    set_clause = ", ".join(f"{c} = %s" for c in campos)
+    set_clause = ", ".join(f"{c.lower()} = %s" for c in campos)
     with cursor(commit=True) as cur:
-        cur.execute(f"UPDATE escola SET {set_clause} WHERE idEscola = %s", (*campos.values(), id_escola))
-        cur.execute("""SELECT idEscola AS "idEscola", NomeEscola AS "NomeEscola", CodigoInep AS "CodigoInep",
-                Cnpj AS "Cnpj", EnderecoEscola AS "EnderecoEscola", TelefoneEscola AS "TelefoneEscola",
-                EmailEscola AS "EmailEscola", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
-                FROM escola WHERE idEscola = %s""", (id_escola,))
+        cur.execute(f"UPDATE escola SET {set_clause} WHERE idescola = %s", (*campos.values(), id_escola))
+        cur.execute("""SELECT idescola AS "idEscola", nomeescola AS "NomeEscola", codigoinep AS "CodigoInep",
+                cnpj AS "Cnpj", enderecoescola AS "EnderecoEscola", telefoneescola AS "TelefoneEscola",
+                emailescola AS "EmailEscola", criadoem AS "CriadoEm", atualizadoem AS "AtualizadoEm"
+                FROM escola WHERE idescola = %s""", (id_escola,))
         return cur.fetchone()
 
 
 def excluir_escola(id_escola) -> bool:
     with cursor(commit=True) as cur:
-        cur.execute("DELETE FROM escola WHERE idEscola = %s", (id_escola,))
+        cur.execute("DELETE FROM escola WHERE idescola = %s", (id_escola,))
         return cur.rowcount > 0
 
 
@@ -335,50 +333,50 @@ def excluir_escola(id_escola) -> bool:
 def inserir_periodo(ano, nome_periodo, data_inicio, data_fim, situacao):
     with cursor(commit=True) as cur:
         cur.execute(
-            """INSERT INTO periodo (Ano, NomePeriodo, DataInicio, DataFim, Situacao)
-               VALUES (%s, %s, %s, %s, %s) RETURNING idPeriodo""",
+            """INSERT INTO periodo (ano, nomeperiodo, datainicio, datafim, situacao)
+               VALUES (%s, %s, %s, %s, %s) RETURNING idperiodo""",
             (ano, nome_periodo, data_inicio, data_fim, situacao),
         )
         novo_id = cur.fetchone()["idperiodo"]
-        cur.execute("""SELECT idPeriodo AS "idPeriodo", Ano AS "Ano", NomePeriodo AS "NomePeriodo",
-                DataInicio AS "DataInicio", DataFim AS "DataFim", Situacao AS "Situacao",
-                CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
-                FROM periodo WHERE idPeriodo = %s""", (novo_id,))
+        cur.execute("""SELECT idperiodo AS "idPeriodo", ano AS "Ano", nomeperiodo AS "NomePeriodo",
+                datainicio AS "DataInicio", datafim AS "DataFim", situacao AS "Situacao",
+                criadoem AS "CriadoEm", atualizadoem AS "AtualizadoEm"
+                FROM periodo WHERE idperiodo = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_periodos():
     with cursor() as cur:
-        cur.execute("""SELECT idPeriodo AS "idPeriodo", Ano AS "Ano", NomePeriodo AS "NomePeriodo",
-                DataInicio AS "DataInicio", DataFim AS "DataFim", Situacao AS "Situacao",
-                CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
-                FROM periodo ORDER BY idPeriodo""")
+        cur.execute("""SELECT idperiodo AS "idPeriodo", ano AS "Ano", nomeperiodo AS "NomePeriodo",
+                datainicio AS "DataInicio", datafim AS "DataFim", situacao AS "Situacao",
+                criadoem AS "CriadoEm", atualizadoem AS "AtualizadoEm"
+                FROM periodo ORDER BY idperiodo""")
         return cur.fetchall()
 
 
 def buscar_periodo(id_periodo):
     with cursor() as cur:
-        cur.execute("""SELECT idPeriodo AS "idPeriodo", Ano AS "Ano", NomePeriodo AS "NomePeriodo",
-                DataInicio AS "DataInicio", DataFim AS "DataFim", Situacao AS "Situacao",
-                CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
-                FROM periodo WHERE idPeriodo = %s""", (id_periodo,))
+        cur.execute("""SELECT idperiodo AS "idPeriodo", ano AS "Ano", nomeperiodo AS "NomePeriodo",
+                datainicio AS "DataInicio", datafim AS "DataFim", situacao AS "Situacao",
+                criadoem AS "CriadoEm", atualizadoem AS "AtualizadoEm"
+                FROM periodo WHERE idperiodo = %s""", (id_periodo,))
         return cur.fetchone()
 
 
 def atualizar_periodo(id_periodo, campos: dict):
-    set_clause = ", ".join(f"{c} = %s" for c in campos)
+    set_clause = ", ".join(f"{c.lower()} = %s" for c in campos)
     with cursor(commit=True) as cur:
-        cur.execute(f"UPDATE periodo SET {set_clause} WHERE idPeriodo = %s", (*campos.values(), id_periodo))
-        cur.execute("""SELECT idPeriodo AS "idPeriodo", Ano AS "Ano", NomePeriodo AS "NomePeriodo",
-                DataInicio AS "DataInicio", DataFim AS "DataFim", Situacao AS "Situacao",
-                CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
-                FROM periodo WHERE idPeriodo = %s""", (id_periodo,))
+        cur.execute(f"UPDATE periodo SET {set_clause} WHERE idperiodo = %s", (*campos.values(), id_periodo))
+        cur.execute("""SELECT idperiodo AS "idPeriodo", ano AS "Ano", nomeperiodo AS "NomePeriodo",
+                datainicio AS "DataInicio", datafim AS "DataFim", situacao AS "Situacao",
+                criadoem AS "CriadoEm", atualizadoem AS "AtualizadoEm"
+                FROM periodo WHERE idperiodo = %s""", (id_periodo,))
         return cur.fetchone()
 
 
 def excluir_periodo(id_periodo) -> bool:
     with cursor(commit=True) as cur:
-        cur.execute("DELETE FROM periodo WHERE idPeriodo = %s", (id_periodo,))
+        cur.execute("DELETE FROM periodo WHERE idperiodo = %s", (id_periodo,))
         return cur.rowcount > 0
 
 
@@ -389,41 +387,41 @@ def excluir_periodo(id_periodo) -> bool:
 def inserir_materia(nome, carga_horaria):
     with cursor(commit=True) as cur:
         cur.execute(
-            "INSERT INTO materia (NomeMateria, CargaHoraria) VALUES (%s, %s) RETURNING idMateria", 
+            "INSERT INTO materia (nomemateria, cargahoraria) VALUES (%s, %s) RETURNING idmateria", 
             (nome, carga_horaria)
         )
         novo_id = cur.fetchone()["idmateria"]
-        cur.execute("""SELECT idMateria AS "idMateria", NomeMateria AS "NomeMateria", CargaHoraria AS "CargaHoraria"
-                FROM materia WHERE idMateria = %s""", (novo_id,))
+        cur.execute("""SELECT idmateria AS "idMateria", nomemateria AS "NomeMateria", cargahoraria AS "CargaHoraria"
+                FROM materia WHERE idmateria = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_materias():
     with cursor() as cur:
-        cur.execute("""SELECT idMateria AS "idMateria", NomeMateria AS "NomeMateria", CargaHoraria AS "CargaHoraria"
-                FROM materia ORDER BY idMateria""")
+        cur.execute("""SELECT idmateria AS "idMateria", nomemateria AS "NomeMateria", cargahoraria AS "CargaHoraria"
+                FROM materia ORDER BY idmateria""")
         return cur.fetchall()
 
 
 def buscar_materia(id_materia):
     with cursor() as cur:
-        cur.execute("""SELECT idMateria AS "idMateria", NomeMateria AS "NomeMateria", CargaHoraria AS "CargaHoraria"
-                FROM materia WHERE idMateria = %s""", (id_materia,))
+        cur.execute("""SELECT idmateria AS "idMateria", nomemateria AS "NomeMateria", cargahoraria AS "CargaHoraria"
+                FROM materia WHERE idmateria = %s""", (id_materia,))
         return cur.fetchone()
 
 
 def atualizar_materia(id_materia, campos: dict):
-    set_clause = ", ".join(f"{c} = %s" for c in campos)
+    set_clause = ", ".join(f"{c.lower()} = %s" for c in campos)
     with cursor(commit=True) as cur:
-        cur.execute(f"UPDATE materia SET {set_clause} WHERE idMateria = %s", (*campos.values(), id_materia))
-        cur.execute("""SELECT idMateria AS "idMateria", NomeMateria AS "NomeMateria", CargaHoraria AS "CargaHoraria"
-                FROM materia WHERE idMateria = %s""", (id_materia,))
+        cur.execute(f"UPDATE materia SET {set_clause} WHERE idmateria = %s", (*campos.values(), id_materia))
+        cur.execute("""SELECT idmateria AS "idMateria", nomemateria AS "NomeMateria", cargahoraria AS "CargaHoraria"
+                FROM materia WHERE idmateria = %s""", (id_materia,))
         return cur.fetchone()
 
 
 def excluir_materia(id_materia) -> bool:
     with cursor(commit=True) as cur:
-        cur.execute("DELETE FROM materia WHERE idMateria = %s", (id_materia,))
+        cur.execute("DELETE FROM materia WHERE idmateria = %s", (id_materia,))
         return cur.rowcount > 0
 
 
@@ -434,53 +432,53 @@ def excluir_materia(id_materia) -> bool:
 def inserir_responsavel(nome, cpf, telefone, email, cep, endereco):
     with cursor(commit=True) as cur:
         cur.execute(
-            """INSERT INTO responsavel (NomeResp, CpfResp, TelefoneResp, EmailResp, CepResp, EnderecoResp)
-               VALUES (%s, %s, %s, %s, %s, %s) RETURNING idResponsavel""",
+            """INSERT INTO responsavel (nomeresp, cpfresp, telefoneresp, emailresp, cepresp, enderecoresp)
+               VALUES (%s, %s, %s, %s, %s, %s) RETURNING idresponsavel""",
             (nome, cpf, telefone, email, cep, endereco),
         )
         novo_id = cur.fetchone()["idresponsavel"]
-        cur.execute("""SELECT idResponsavel AS "idResponsavel", NomeResp AS "NomeResp", CpfResp AS "CpfResp",
-                TelefoneResp AS "TelefoneResp", EmailResp AS "EmailResp", CepResp AS "CepResp",
-                EnderecoResp AS "EnderecoResp", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
-                FROM responsavel WHERE idResponsavel = %s""", (novo_id,))
+        cur.execute("""SELECT idresponsavel AS "idResponsavel", nomeresp AS "NomeResp", cpfresp AS "CpfResp",
+                telefoneresp AS "TelefoneResp", emailresp AS "EmailResp", cepresp AS "CepResp",
+                enderecoresp AS "EnderecoResp", criadoem AS "CriadoEm", atualizadoem AS "AtualizadoEm"
+                FROM responsavel WHERE idresponsavel = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_responsaveis():
     with cursor() as cur:
-        cur.execute("""SELECT idResponsavel AS "idResponsavel", NomeResp AS "NomeResp", CpfResp AS "CpfResp",
-                TelefoneResp AS "TelefoneResp", EmailResp AS "EmailResp", CepResp AS "CepResp",
-                EnderecoResp AS "EnderecoResp", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
-                FROM responsavel ORDER BY idResponsavel""")
+        cur.execute("""SELECT idresponsavel AS "idResponsavel", nomeresp AS "NomeResp", cpfresp AS "CpfResp",
+                telefoneresp AS "TelefoneResp", emailresp AS "EmailResp", cepresp AS "CepResp",
+                enderecoresp AS "EnderecoResp", criadoem AS "CriadoEm", atualizadoem AS "AtualizadoEm"
+                FROM responsavel ORDER BY idresponsavel""")
         return cur.fetchall()
 
 
 def buscar_responsavel(id_responsavel):
     with cursor() as cur:
-        cur.execute("""SELECT idResponsavel AS "idResponsavel", NomeResp AS "NomeResp", CpfResp AS "CpfResp",
-                TelefoneResp AS "TelefoneResp", EmailResp AS "EmailResp", CepResp AS "CepResp",
-                EnderecoResp AS "EnderecoResp", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
-                FROM responsavel WHERE idResponsavel = %s""", (id_responsavel,))
+        cur.execute("""SELECT idresponsavel AS "idResponsavel", nomeresp AS "NomeResp", cpfresp AS "CpfResp",
+                telefoneresp AS "TelefoneResp", emailresp AS "EmailResp", cepresp AS "CepResp",
+                enderecoresp AS "EnderecoResp", criadoem AS "CriadoEm", atualizadoem AS "AtualizadoEm"
+                FROM responsavel WHERE idresponsavel = %s""", (id_responsavel,))
         return cur.fetchone()
 
 
 def atualizar_responsavel(id_responsavel, campos: dict):
-    set_clause = ", ".join(f"{c} = %s" for c in campos)
+    set_clause = ", ".join(f"{c.lower()} = %s" for c in campos)
     with cursor(commit=True) as cur:
         cur.execute(
-            f"UPDATE responsavel SET {set_clause} WHERE idResponsavel = %s",
+            f"UPDATE responsavel SET {set_clause} WHERE idresponsavel = %s",
             (*campos.values(), id_responsavel),
         )
-        cur.execute("""SELECT idResponsavel AS "idResponsavel", NomeResp AS "NomeResp", CpfResp AS "CpfResp",
-                TelefoneResp AS "TelefoneResp", EmailResp AS "EmailResp", CepResp AS "CepResp",
-                EnderecoResp AS "EnderecoResp", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
-                FROM responsavel WHERE idResponsavel = %s""", (id_responsavel,))
+        cur.execute("""SELECT idresponsavel AS "idResponsavel", nomeresp AS "NomeResp", cpfresp AS "CpfResp",
+                telefoneresp AS "TelefoneResp", emailresp AS "EmailResp", cepresp AS "CepResp",
+                enderecoresp AS "EnderecoResp", criadoem AS "CriadoEm", atualizadoem AS "AtualizadoEm"
+                FROM responsavel WHERE idresponsavel = %s""", (id_responsavel,))
         return cur.fetchone()
 
 
 def excluir_responsavel(id_responsavel) -> bool:
     with cursor(commit=True) as cur:
-        cur.execute("DELETE FROM responsavel WHERE idResponsavel = %s", (id_responsavel,))
+        cur.execute("DELETE FROM responsavel WHERE idresponsavel = %s", (id_responsavel,))
         return cur.rowcount > 0
 
 
@@ -491,33 +489,33 @@ def excluir_responsavel(id_responsavel) -> bool:
 def inserir_aluno(numero_matricula, nome, data_nascimento, cpf, telefone, email, cep, endereco, situacao):
     with cursor(commit=True) as cur:
         cur.execute(
-            """INSERT INTO aluno (NumeroMatricula, NomeAluno, DataNascimento, CpfAluno,
-                                   TelefoneAluno, EmailAluno, CepAluno, EnderecoAluno, Situacao)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING idAluno""",
+            """INSERT INTO aluno (numeromatricula, nomealuno, datanascimento, cpfaluno,
+                                   telefonealuno, emailaluno, cepaluno, enderecoaluno, situacao)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING idaluno""",
             (numero_matricula, nome, data_nascimento, cpf, telefone, email, cep, endereco, situacao),
         )
         novo_id = cur.fetchone()["idaluno"]
-        cur.execute("""SELECT idAluno AS "idAluno", NumeroMatricula AS "NumeroMatricula", NomeAluno AS "NomeAluno",
-                DataNascimento AS "DataNascimento", CpfAluno AS "CpfAluno", TelefoneAluno AS "TelefoneAluno",
-                EmailAluno AS "EmailAluno", CepAluno AS "CepAluno", EnderecoAluno AS "EnderecoAluno",
-                Situacao AS "Situacao", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
-                FROM aluno WHERE idAluno = %s""", (novo_id,))
+        cur.execute("""SELECT idaluno AS "idAluno", numeromatricula AS "NumeroMatricula", nomealuno AS "NomeAluno",
+                datanascimento AS "DataNascimento", cpfaluno AS "CpfAluno", telefonealuno AS "TelefoneAluno",
+                emailaluno AS "EmailAluno", cepaluno AS "CepAluno", enderecoaluno AS "EnderecoAluno",
+                situacao AS "Situacao", criadoem AS "CriadoEm", atualizadoem AS "AtualizadoEm"
+                FROM aluno WHERE idaluno = %s""", (novo_id,))
         return cur.fetchone()
 
 def listar_alunos(situacao: str | None = None, nome: str | None = None):
-    query = """SELECT idAluno AS "idAluno", NumeroMatricula AS "NumeroMatricula", NomeAluno AS "NomeAluno",
-                DataNascimento AS "DataNascimento", CpfAluno AS "CpfAluno", TelefoneAluno AS "TelefoneAluno",
-                EmailAluno AS "EmailAluno", CepAluno AS "CepAluno", EnderecoAluno AS "EnderecoAluno",
-                Situacao AS "Situacao", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+    query = """SELECT idaluno AS "idAluno", numeromatricula AS "NumeroMatricula", nomealuno AS "NomeAluno",
+                datanascimento AS "DataNascimento", cpfaluno AS "CpfAluno", telefonealuno AS "TelefoneAluno",
+                emailaluno AS "EmailAluno", cepaluno AS "CepAluno", enderecoaluno AS "EnderecoAluno",
+                situacao AS "Situacao", criadoem AS "CriadoEm", atualizadoem AS "AtualizadoEm"
                 FROM aluno WHERE 1=1"""
     params = []
     if situacao:
-        query += " AND Situacao = %s"
+        query += " AND situacao = %s"
         params.append(situacao)
     if nome:
-        query += " AND NomeAluno LIKE %s"
+        query += " AND nomealuno LIKE %s"
         params.append(f"%{nome}%")
-    query += " ORDER BY idAluno"
+    query += " ORDER BY idaluno"
     with cursor() as cur:
         cur.execute(query, tuple(params))
         return cur.fetchall()
@@ -525,29 +523,29 @@ def listar_alunos(situacao: str | None = None, nome: str | None = None):
 
 def buscar_aluno(id_aluno):
     with cursor() as cur:
-        cur.execute("""SELECT idAluno AS "idAluno", NumeroMatricula AS "NumeroMatricula", NomeAluno AS "NomeAluno",
-                DataNascimento AS "DataNascimento", CpfAluno AS "CpfAluno", TelefoneAluno AS "TelefoneAluno",
-                EmailAluno AS "EmailAluno", CepAluno AS "CepAluno", EnderecoAluno AS "EnderecoAluno",
-                Situacao AS "Situacao", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
-                FROM aluno WHERE idAluno = %s""", (id_aluno,))
+        cur.execute("""SELECT idaluno AS "idAluno", numeromatricula AS "NumeroMatricula", nomealuno AS "NomeAluno",
+                datanascimento AS "DataNascimento", cpfaluno AS "CpfAluno", telefonealuno AS "TelefoneAluno",
+                emailaluno AS "EmailAluno", cepaluno AS "CepAluno", enderecoaluno AS "EnderecoAluno",
+                situacao AS "Situacao", criadoem AS "CriadoEm", atualizadoem AS "AtualizadoEm"
+                FROM aluno WHERE idaluno = %s""", (id_aluno,))
         return cur.fetchone()
 
 
 def atualizar_aluno(id_aluno, campos: dict):
-    set_clause = ", ".join(f"{c} = %s" for c in campos)
+    set_clause = ", ".join(f"{c.lower()} = %s" for c in campos)
     with cursor(commit=True) as cur:
-        cur.execute(f"UPDATE aluno SET {set_clause} WHERE idAluno = %s", (*campos.values(), id_aluno))
-        cur.execute("""SELECT idAluno AS "idAluno", NumeroMatricula AS "NumeroMatricula", NomeAluno AS "NomeAluno",
-                DataNascimento AS "DataNascimento", CpfAluno AS "CpfAluno", TelefoneAluno AS "TelefoneAluno",
-                EmailAluno AS "EmailAluno", CepAluno AS "CepAluno", EnderecoAluno AS "EnderecoAluno",
-                Situacao AS "Situacao", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
-                FROM aluno WHERE idAluno = %s""", (id_aluno,))
+        cur.execute(f"UPDATE aluno SET {set_clause} WHERE idaluno = %s", (*campos.values(), id_aluno))
+        cur.execute("""SELECT idaluno AS "idAluno", numeromatricula AS "NumeroMatricula", nomealuno AS "NomeAluno",
+                datanascimento AS "DataNascimento", cpfaluno AS "CpfAluno", telefonealuno AS "TelefoneAluno",
+                emailaluno AS "EmailAluno", cepaluno AS "CepAluno", enderecoaluno AS "EnderecoAluno",
+                situacao AS "Situacao", criadoem AS "CriadoEm", atualizadoem AS "AtualizadoEm"
+                FROM aluno WHERE idaluno = %s""", (id_aluno,))
         return cur.fetchone()
 
 
 def excluir_aluno(id_aluno) -> bool:
     with cursor(commit=True) as cur:
-        cur.execute("DELETE FROM aluno WHERE idAluno = %s", (id_aluno,))
+        cur.execute("DELETE FROM aluno WHERE idaluno = %s", (id_aluno,))
         return cur.rowcount > 0
 
 
@@ -555,24 +553,24 @@ def excluir_aluno(id_aluno) -> bool:
 
 def escola_atual_do_aluno(id_aluno):
     with cursor() as cur:
-        cur.execute("""SELECT idAluno AS "idAluno", idEscola AS "idEscola", NomeEscola AS "NomeEscola"
-                FROM vw_aluno_escola_atual WHERE idAluno = %s""", (id_aluno,))
+        cur.execute("""SELECT idaluno AS "idAluno", idescola AS "idEscola", nomeescola AS "NomeEscola"
+                FROM vw_aluno_escola_atual WHERE idaluno = %s""", (id_aluno,))
         return cur.fetchone()
 
 
 def responsaveis_financeiros_do_aluno(id_aluno):
     with cursor() as cur:
-        cur.execute("""SELECT Aluno_idAluno AS "Aluno_idAluno", idResponsavel AS "idResponsavel", NomeResp AS "NomeResp",
-                EmailResp AS "EmailResp", TelefoneResp AS "TelefoneResp"
-                FROM vw_aluno_responsavel_financeiro WHERE Aluno_idAluno = %s""", (id_aluno,))
+        cur.execute("""SELECT aluno_idaluno AS "Aluno_idAluno", idresponsavel AS "idResponsavel", nomeresp AS "NomeResp",
+                emailresp AS "EmailResp", telefoneresp AS "TelefoneResp"
+                FROM vw_aluno_responsavel_financeiro WHERE aluno_idaluno = %s""", (id_aluno,))
         return cur.fetchall()
 
 
 def medias_dinamicas_do_aluno(id_aluno):
     with cursor() as cur:
-        cur.execute("""SELECT Aluno_idAluno AS "Aluno_idAluno", Periodo_idPeriodo AS "Periodo_idPeriodo", Materia_idMateria AS "Materia_idMateria",
-                MediaCalculada AS "MediaCalculada", QtdAvaliacoesContabilizadas AS "QtdAvaliacoesContabilizadas"
-                FROM vw_aluno_media_dinamica WHERE Aluno_idAluno = %s""", (id_aluno,))
+        cur.execute("""SELECT aluno_idaluno AS "Aluno_idAluno", periodo_idperiodo AS "Periodo_idPeriodo", materia_idmateria AS "Materia_idMateria",
+                mediacalculada AS "MediaCalculada", qtdavaliacoescontabilizadas AS "QtdAvaliacoesContabilizadas"
+                FROM vw_aluno_media_dinamica WHERE aluno_idaluno = %s""", (id_aluno,))
         return cur.fetchall()
 
 
@@ -583,28 +581,28 @@ def medias_dinamicas_do_aluno(id_aluno):
 def inserir_turma(nome, serie, turno, capacidade, escola_id, ano_letivo):
     with cursor(commit=True) as cur:
         cur.execute(
-            """INSERT INTO turma (NomeTurma, Serie, Turno, Capacidade, Escola_idEscola, AnoLetivo)
-               VALUES (%s, %s, %s, %s, %s, %s) RETURNING idTurma""",
+            """INSERT INTO turma (nometurma, serie, turno, capacidade, escola_idescola, anoletivo)
+               VALUES (%s, %s, %s, %s, %s, %s) RETURNING idturma""",
             (nome, serie, turno, capacidade, escola_id, ano_letivo),
         )
         novo_id = cur.fetchone()["idturma"]
-        cur.execute("""SELECT idTurma AS "idTurma", NomeTurma AS "NomeTurma", Serie AS "Serie",
-                Turno AS "Turno", Capacidade AS "Capacidade", Escola_idEscola AS "Escola_idEscola",
-                AnoLetivo AS "AnoLetivo", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
-                FROM turma WHERE idTurma = %s""", (novo_id,))
+        cur.execute("""SELECT idturma AS "idTurma", nometurma AS "NomeTurma", serie AS "Serie",
+                turno AS "Turno", capacidade AS "Capacidade", escola_idescola AS "Escola_idEscola",
+                anoletivo AS "AnoLetivo", criadoem AS "CriadoEm", atualizadoem AS "AtualizadoEm"
+                FROM turma WHERE idturma = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_turmas(escola_id: int | None = None):
-    query = """SELECT idTurma AS "idTurma", NomeTurma AS "NomeTurma", Serie AS "Serie",
-                Turno AS "Turno", Capacidade AS "Capacidade", Escola_idEscola AS "Escola_idEscola",
-                AnoLetivo AS "AnoLetivo", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+    query = """SELECT idturma AS "idTurma", nometurma AS "NomeTurma", serie AS "Serie",
+                turno AS "Turno", capacidade AS "Capacidade", escola_idescola AS "Escola_idEscola",
+                anoletivo AS "AnoLetivo", criadoem AS "CriadoEm", atualizadoem AS "AtualizadoEm"
                 FROM turma WHERE 1=1"""
     params = []
     if escola_id:
-        query += " AND Escola_idEscola = %s"
+        query += " AND escola_idescola = %s"
         params.append(escola_id)
-    query += " ORDER BY idTurma"
+    query += " ORDER BY idturma"
     with cursor() as cur:
         cur.execute(query, tuple(params))
         return cur.fetchall()
@@ -612,27 +610,27 @@ def listar_turmas(escola_id: int | None = None):
 
 def buscar_turma(id_turma):
     with cursor() as cur:
-        cur.execute("""SELECT idTurma AS "idTurma", NomeTurma AS "NomeTurma", Serie AS "Serie",
-                Turno AS "Turno", Capacidade AS "Capacidade", Escola_idEscola AS "Escola_idEscola",
-                AnoLetivo AS "AnoLetivo", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
-                FROM turma WHERE idTurma = %s""", (id_turma,))
+        cur.execute("""SELECT idturma AS "idTurma", nometurma AS "NomeTurma", serie AS "Serie",
+                turno AS "Turno", capacidade AS "Capacidade", escola_idescola AS "Escola_idEscola",
+                anoletivo AS "AnoLetivo", criadoem AS "CriadoEm", atualizadoem AS "AtualizadoEm"
+                FROM turma WHERE idturma = %s""", (id_turma,))
         return cur.fetchone()
 
 
 def atualizar_turma(id_turma, campos: dict):
-    set_clause = ", ".join(f"{c} = %s" for c in campos)
+    set_clause = ", ".join(f"{c.lower()} = %s" for c in campos)
     with cursor(commit=True) as cur:
-        cur.execute(f"UPDATE turma SET {set_clause} WHERE idTurma = %s", (*campos.values(), id_turma))
-        cur.execute("""SELECT idTurma AS "idTurma", NomeTurma AS "NomeTurma", Serie AS "Serie",
-                Turno AS "Turno", Capacidade AS "Capacidade", Escola_idEscola AS "Escola_idEscola",
-                AnoLetivo AS "AnoLetivo", CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
-                FROM turma WHERE idTurma = %s""", (id_turma,))
+        cur.execute(f"UPDATE turma SET {set_clause} WHERE idturma = %s", (*campos.values(), id_turma))
+        cur.execute("""SELECT idturma AS "idTurma", nometurma AS "NomeTurma", serie AS "Serie",
+                turno AS "Turno", capacidade AS "Capacidade", escola_idescola AS "Escola_idEscola",
+                anoletivo AS "AnoLetivo", criadoem AS "CriadoEm", atualizadoem AS "AtualizadoEm"
+                FROM turma WHERE idturma = %s""", (id_turma,))
         return cur.fetchone()
 
 
 def excluir_turma(id_turma) -> bool:
     with cursor(commit=True) as cur:
-        cur.execute("DELETE FROM turma WHERE idTurma = %s", (id_turma,))
+        cur.execute("DELETE FROM turma WHERE idturma = %s", (id_turma,))
         return cur.rowcount > 0
 
 
@@ -643,31 +641,31 @@ def excluir_turma(id_turma) -> bool:
 def inserir_professor(nome, cpf, telefone, email, cep, endereco, situacao, escola_id):
     with cursor(commit=True) as cur:
         cur.execute(
-            """INSERT INTO professor (NomeProf, CpfProf, TelefoneProf, EmailProf, CepProf,
-                                       EnderecoProf, Situacao, Escola_idEscola)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING idProfessor""",
+            """INSERT INTO professor (nomeprof, cpfprof, telefoneprof, emailprof, cepprof,
+                                       enderecoprof, situacao, escola_idescola)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING idprofessor""",
             (nome, cpf, telefone, email, cep, endereco, situacao, escola_id),
         )
         novo_id = cur.fetchone()["idprofessor"]
-        cur.execute("""SELECT idProfessor AS "idProfessor", NomeProf AS "NomeProf", CpfProf AS "CpfProf",
-                TelefoneProf AS "TelefoneProf", EmailProf AS "EmailProf", CepProf AS "CepProf",
-                EnderecoProf AS "EnderecoProf", Situacao AS "Situacao", Escola_idEscola AS "Escola_idEscola",
-                CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
-                FROM professor WHERE idProfessor = %s""", (novo_id,))
+        cur.execute("""SELECT idprofessor AS "idProfessor", nomeprof AS "NomeProf", cpfprof AS "CpfProf",
+                telefoneprof AS "TelefoneProf", emailprof AS "EmailProf", cepprof AS "CepProf",
+                enderecoprof AS "EnderecoProf", situacao AS "Situacao", escola_idescola AS "Escola_idEscola",
+                criadoem AS "CriadoEm", atualizadoem AS "AtualizadoEm"
+                FROM professor WHERE idprofessor = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_professores(escola_id: int | None = None):
-    query = """SELECT idProfessor AS "idProfessor", NomeProf AS "NomeProf", CpfProf AS "CpfProf",
-                TelefoneProf AS "TelefoneProf", EmailProf AS "EmailProf", CepProf AS "CepProf",
-                EnderecoProf AS "EnderecoProf", Situacao AS "Situacao", Escola_idEscola AS "Escola_idEscola",
-                CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
+    query = """SELECT idprofessor AS "idProfessor", nomeprof AS "NomeProf", cpfprof AS "CpfProf",
+                telefoneprof AS "TelefoneProf", emailprof AS "EmailProf", cepprof AS "CepProf",
+                enderecoprof AS "EnderecoProf", situacao AS "Situacao", escola_idescola AS "Escola_idEscola",
+                criadoem AS "CriadoEm", atualizadoem AS "AtualizadoEm"
                 FROM professor WHERE 1=1"""
     params = []
     if escola_id:
-        query += " AND Escola_idEscola = %s"
+        query += " AND escola_idescola = %s"
         params.append(escola_id)
-    query += " ORDER BY idProfessor"
+    query += " ORDER BY idprofessor"
     with cursor() as cur:
         cur.execute(query, tuple(params))
         return cur.fetchall()
@@ -675,29 +673,29 @@ def listar_professores(escola_id: int | None = None):
 
 def buscar_professor(id_professor):
     with cursor() as cur:
-        cur.execute("""SELECT idProfessor AS "idProfessor", NomeProf AS "NomeProf", CpfProf AS "CpfProf",
-                TelefoneProf AS "TelefoneProf", EmailProf AS "EmailProf", CepProf AS "CepProf",
-                EnderecoProf AS "EnderecoProf", Situacao AS "Situacao", Escola_idEscola AS "Escola_idEscola",
-                CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
-                FROM professor WHERE idProfessor = %s""", (id_professor,))
+        cur.execute("""SELECT idprofessor AS "idProfessor", nomeprof AS "NomeProf", cpfprof AS "CpfProf",
+                telefoneprof AS "TelefoneProf", emailprof AS "EmailProf", cepprof AS "CepProf",
+                enderecoprof AS "EnderecoProf", situacao AS "Situacao", escola_idescola AS "Escola_idEscola",
+                criadoem AS "CriadoEm", atualizadoem AS "AtualizadoEm"
+                FROM professor WHERE idprofessor = %s""", (id_professor,))
         return cur.fetchone()
 
 
 def atualizar_professor(id_professor, campos: dict):
-    set_clause = ", ".join(f"{c} = %s" for c in campos)
+    set_clause = ", ".join(f"{c.lower()} = %s" for c in campos)
     with cursor(commit=True) as cur:
-        cur.execute(f"UPDATE professor SET {set_clause} WHERE idProfessor = %s", (*campos.values(), id_professor))
-        cur.execute("""SELECT idProfessor AS "idProfessor", NomeProf AS "NomeProf", CpfProf AS "CpfProf",
-                TelefoneProf AS "TelefoneProf", EmailProf AS "EmailProf", CepProf AS "CepProf",
-                EnderecoProf AS "EnderecoProf", Situacao AS "Situacao", Escola_idEscola AS "Escola_idEscola",
-                CriadoEm AS "CriadoEm", AtualizadoEm AS "AtualizadoEm"
-                FROM professor WHERE idProfessor = %s""", (id_professor,))
+        cur.execute(f"UPDATE professor SET {set_clause} WHERE idprofessor = %s", (*campos.values(), id_professor))
+        cur.execute("""SELECT idprofessor AS "idProfessor", nomeprof AS "NomeProf", cpfprof AS "CpfProf",
+                telefoneprof AS "TelefoneProf", emailprof AS "EmailProf", cepprof AS "CepProf",
+                enderecoprof AS "EnderecoProf", situacao AS "Situacao", escola_idescola AS "Escola_idEscola",
+                criadoem AS "CriadoEm", atualizadoem AS "AtualizadoEm"
+                FROM professor WHERE idprofessor = %s""", (id_professor,))
         return cur.fetchone()
 
 
 def excluir_professor(id_professor) -> bool:
     with cursor(commit=True) as cur:
-        cur.execute("DELETE FROM professor WHERE idProfessor = %s", (id_professor,))
+        cur.execute("DELETE FROM professor WHERE idprofessor = %s", (id_professor,))
         return cur.rowcount > 0
 
 
@@ -708,31 +706,31 @@ def excluir_professor(id_professor) -> bool:
 def inserir_matricula(aluno_id, turma_id, data_matricula, situacao):
     with cursor(commit=True) as cur:
         cur.execute(
-            """INSERT INTO matricula (Aluno_idAluno, Turma_idTurma, DataMatricula, Situacao)
-               VALUES (%s, %s, %s, %s) RETURNING idMatricula""",
+            """INSERT INTO matricula (aluno_idaluno, turma_idturma, datamatricula, situacao)
+               VALUES (%s, %s, %s, %s) RETURNING idmatricula""",
             (aluno_id, turma_id, data_matricula, situacao),
         )
         novo_id = cur.fetchone()["idmatricula"]
-        cur.execute("""SELECT idMatricula AS "idMatricula", Aluno_idAluno AS "Aluno_idAluno", Turma_idTurma AS "Turma_idTurma",
-                DataMatricula AS "DataMatricula", Situacao AS "Situacao", CriadoEm AS "CriadoEm",
-                AtualizadoEm AS "AtualizadoEm"
-                FROM matricula WHERE idMatricula = %s""", (novo_id,))
+        cur.execute("""SELECT idmatricula AS "idMatricula", aluno_idaluno AS "Aluno_idAluno", turma_idturma AS "Turma_idTurma",
+                datamatricula AS "DataMatricula", situacao AS "Situacao", criadoem AS "CriadoEm",
+                atualizadoem AS "AtualizadoEm"
+                FROM matricula WHERE idmatricula = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_matriculas(aluno_id: int | None = None, turma_id: int | None = None):
-    query = """SELECT idMatricula AS "idMatricula", Aluno_idAluno AS "Aluno_idAluno", Turma_idTurma AS "Turma_idTurma",
-                DataMatricula AS "DataMatricula", Situacao AS "Situacao", CriadoEm AS "CriadoEm",
-                AtualizadoEm AS "AtualizadoEm"
+    query = """SELECT idmatricula AS "idMatricula", aluno_idaluno AS "Aluno_idAluno", turma_idturma AS "Turma_idTurma",
+                datamatricula AS "DataMatricula", situacao AS "Situacao", criadoem AS "CriadoEm",
+                atualizadoem AS "AtualizadoEm"
                 FROM matricula WHERE 1=1"""
     params = []
     if aluno_id:
-        query += " AND Aluno_idAluno = %s"
+        query += " AND aluno_idaluno = %s"
         params.append(aluno_id)
     if turma_id:
-        query += " AND Turma_idTurma = %s"
+        query += " AND turma_idturma = %s"
         params.append(turma_id)
-    query += " ORDER BY idMatricula"
+    query += " ORDER BY idmatricula"
     with cursor() as cur:
         cur.execute(query, tuple(params))
         return cur.fetchall()
@@ -740,27 +738,27 @@ def listar_matriculas(aluno_id: int | None = None, turma_id: int | None = None):
 
 def buscar_matricula(id_matricula):
     with cursor() as cur:
-        cur.execute("""SELECT idMatricula AS "idMatricula", Aluno_idAluno AS "Aluno_idAluno", Turma_idTurma AS "Turma_idTurma",
-                DataMatricula AS "DataMatricula", Situacao AS "Situacao", CriadoEm AS "CriadoEm",
-                AtualizadoEm AS "AtualizadoEm"
-                FROM matricula WHERE idMatricula = %s""", (id_matricula,))
+        cur.execute("""SELECT idmatricula AS "idMatricula", aluno_idaluno AS "Aluno_idAluno", turma_idturma AS "Turma_idTurma",
+                datamatricula AS "DataMatricula", situacao AS "Situacao", criadoem AS "CriadoEm",
+                atualizadoem AS "AtualizadoEm"
+                FROM matricula WHERE idmatricula = %s""", (id_matricula,))
         return cur.fetchone()
 
 
 def atualizar_matricula(id_matricula, campos: dict):
-    set_clause = ", ".join(f"{c} = %s" for c in campos)
+    set_clause = ", ".join(f"{c.lower()} = %s" for c in campos)
     with cursor(commit=True) as cur:
-        cur.execute(f"UPDATE matricula SET {set_clause} WHERE idMatricula = %s", (*campos.values(), id_matricula))
-        cur.execute("""SELECT idMatricula AS "idMatricula", Aluno_idAluno AS "Aluno_idAluno", Turma_idTurma AS "Turma_idTurma",
-                DataMatricula AS "DataMatricula", Situacao AS "Situacao", CriadoEm AS "CriadoEm",
-                AtualizadoEm AS "AtualizadoEm"
-                FROM matricula WHERE idMatricula = %s""", (id_matricula,))
+        cur.execute(f"UPDATE matricula SET {set_clause} WHERE idmatricula = %s", (*campos.values(), id_matricula))
+        cur.execute("""SELECT idmatricula AS "idMatricula", aluno_idaluno AS "Aluno_idAluno", turma_idturma AS "Turma_idTurma",
+                datamatricula AS "DataMatricula", situacao AS "Situacao", criadoem AS "CriadoEm",
+                atualizadoem AS "AtualizadoEm"
+                FROM matricula WHERE idmatricula = %s""", (id_matricula,))
         return cur.fetchone()
 
 
 def excluir_matricula(id_matricula) -> bool:
     with cursor(commit=True) as cur:
-        cur.execute("DELETE FROM matricula WHERE idMatricula = %s", (id_matricula,))
+        cur.execute("DELETE FROM matricula WHERE idmatricula = %s", (id_matricula,))
         return cur.rowcount > 0
 
 
@@ -771,14 +769,14 @@ def excluir_matricula(id_matricula) -> bool:
 def vincular_responsavel(aluno_id, responsavel_id, tipo, financeiro):
     with cursor(commit=True) as cur:
         cur.execute(
-            """INSERT INTO alunoresponsavel (Aluno_idAluno, Responsavel_idResponsavel, TipoResponsavel, ResponsavelFinanceiro)
+            """INSERT INTO alunoresponsavel (aluno_idaluno, responsavel_idresponsavel, tiporesponsavel, responsavelfinanceiro)
                VALUES (%s, %s, %s, %s)""",
             (aluno_id, responsavel_id, tipo, financeiro),
         )
         cur.execute(
-            """SELECT Aluno_idAluno AS "Aluno_idAluno", Responsavel_idResponsavel AS "Responsavel_idResponsavel", TipoResponsavel AS "TipoResponsavel",
-                ResponsavelFinanceiro AS "ResponsavelFinanceiro"
-                FROM alunoresponsavel WHERE Aluno_idAluno = %s AND Responsavel_idResponsavel = %s""",
+            """SELECT aluno_idaluno AS "Aluno_idAluno", responsavel_idresponsavel AS "Responsavel_idResponsavel", tiporesponsavel AS "TipoResponsavel",
+                responsavelfinanceiro AS "ResponsavelFinanceiro"
+                FROM alunoresponsavel WHERE aluno_idaluno = %s AND responsavel_idresponsavel = %s""",
             (aluno_id, responsavel_id),
         )
         return cur.fetchone()
@@ -787,14 +785,14 @@ def vincular_responsavel(aluno_id, responsavel_id, tipo, financeiro):
 def listar_responsaveis_do_aluno(aluno_id):
     with cursor() as cur:
         cur.execute(
-            """SELECT ar.Aluno_idAluno AS "Aluno_idAluno",
-                      ar.Responsavel_idResponsavel AS "Responsavel_idResponsavel",
-                      ar.TipoResponsavel AS "TipoResponsavel",
-                      ar.ResponsavelFinanceiro AS "ResponsavelFinanceiro",
-                      r.NomeResp AS "NomeResp", r.EmailResp AS "EmailResp", r.TelefoneResp AS "TelefoneResp"
+            """SELECT ar.aluno_idaluno AS "Aluno_idAluno",
+                      ar.responsavel_idresponsavel AS "Responsavel_idResponsavel",
+                      ar.tiporesponsavel AS "TipoResponsavel",
+                      ar.responsavelfinanceiro AS "ResponsavelFinanceiro",
+                      r.nomeresp AS "NomeResp", r.emailresp AS "EmailResp", r.telefoneresp AS "TelefoneResp"
                FROM alunoresponsavel ar
-               JOIN responsavel r ON r.idResponsavel = ar.Responsavel_idResponsavel
-               WHERE ar.Aluno_idAluno = %s""",
+               JOIN responsavel r ON r.idresponsavel = ar.responsavel_idresponsavel
+               WHERE ar.aluno_idaluno = %s""",
             (aluno_id,),
         )
         return cur.fetchall()
@@ -803,9 +801,9 @@ def listar_responsaveis_do_aluno(aluno_id):
 def buscar_vinculo(aluno_id, responsavel_id):
     with cursor() as cur:
         cur.execute(
-            """SELECT Aluno_idAluno AS "Aluno_idAluno", Responsavel_idResponsavel AS "Responsavel_idResponsavel", TipoResponsavel AS "TipoResponsavel",
-                ResponsavelFinanceiro AS "ResponsavelFinanceiro"
-                FROM alunoresponsavel WHERE Aluno_idAluno = %s AND Responsavel_idResponsavel = %s""",
+            """SELECT aluno_idaluno AS "Aluno_idAluno", responsavel_idresponsavel AS "Responsavel_idResponsavel", tiporesponsavel AS "TipoResponsavel",
+                responsavelfinanceiro AS "ResponsavelFinanceiro"
+                FROM alunoresponsavel WHERE aluno_idaluno = %s AND responsavel_idresponsavel = %s""",
             (aluno_id, responsavel_id),
         )
         return cur.fetchone()
@@ -814,7 +812,7 @@ def buscar_vinculo(aluno_id, responsavel_id):
 def desvincular_responsavel(aluno_id, responsavel_id) -> bool:
     with cursor(commit=True) as cur:
         cur.execute(
-            "DELETE FROM alunoresponsavel WHERE Aluno_idAluno = %s AND Responsavel_idResponsavel = %s",
+            "DELETE FROM alunoresponsavel WHERE aluno_idaluno = %s AND responsavel_idresponsavel = %s",
             (aluno_id, responsavel_id),
         )
         return cur.rowcount > 0
@@ -827,26 +825,26 @@ def desvincular_responsavel(aluno_id, responsavel_id) -> bool:
 def inserir_grade(turma_id, materia_id, professor_id):
     with cursor(commit=True) as cur:
         cur.execute(
-            """INSERT INTO grade_curricular (Turma_idTurma, Materia_idMateria, Professor_idProfessor)
-               VALUES (%s, %s, %s) RETURNING idGrade""",
+            """INSERT INTO grade_curricular (turma_idturma, materia_idmateria, professor_idprofessor)
+               VALUES (%s, %s, %s) RETURNING idgrade""",
             (turma_id, materia_id, professor_id),
         )
         novo_id = cur.fetchone()["idgrade"]
-        cur.execute("""SELECT idGrade AS "idGrade", Turma_idTurma AS "Turma_idTurma", Materia_idMateria AS "Materia_idMateria",
-                Professor_idProfessor AS "Professor_idProfessor"
-                FROM grade_curricular WHERE idGrade = %s""", (novo_id,))
+        cur.execute("""SELECT idgrade AS "idGrade", turma_idturma AS "Turma_idTurma", materia_idmateria AS "Materia_idMateria",
+                professor_idprofessor AS "Professor_idProfessor"
+                FROM grade_curricular WHERE idgrade = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_grades(turma_id: int | None = None):
-    query = """SELECT idGrade AS "idGrade", Turma_idTurma AS "Turma_idTurma", Materia_idMateria AS "Materia_idMateria",
-                Professor_idProfessor AS "Professor_idProfessor"
+    query = """SELECT idgrade AS "idGrade", turma_idturma AS "Turma_idTurma", materia_idmateria AS "Materia_idMateria",
+                professor_idprofessor AS "Professor_idProfessor"
                 FROM grade_curricular WHERE 1=1"""
     params = []
     if turma_id:
-        query += " AND Turma_idTurma = %s"
+        query += " AND turma_idturma = %s"
         params.append(turma_id)
-    query += " ORDER BY idGrade"
+    query += " ORDER BY idgrade"
     with cursor() as cur:
         cur.execute(query, tuple(params))
         return cur.fetchall()
@@ -854,15 +852,15 @@ def listar_grades(turma_id: int | None = None):
 
 def buscar_grade(id_grade):
     with cursor() as cur:
-        cur.execute("""SELECT idGrade AS "idGrade", Turma_idTurma AS "Turma_idTurma", Materia_idMateria AS "Materia_idMateria",
-                Professor_idProfessor AS "Professor_idProfessor"
-                FROM grade_curricular WHERE idGrade = %s""", (id_grade,))
+        cur.execute("""SELECT idgrade AS "idGrade", turma_idturma AS "Turma_idTurma", materia_idmateria AS "Materia_idMateria",
+                professor_idprofessor AS "Professor_idProfessor"
+                FROM grade_curricular WHERE idgrade = %s""", (id_grade,))
         return cur.fetchone()
 
 
 def excluir_grade(id_grade) -> bool:
     with cursor(commit=True) as cur:
-        cur.execute("DELETE FROM grade_curricular WHERE idGrade = %s", (id_grade,))
+        cur.execute("DELETE FROM grade_curricular WHERE idgrade = %s", (id_grade,))
         return cur.rowcount > 0
 
 
@@ -873,31 +871,31 @@ def excluir_grade(id_grade) -> bool:
 def inserir_avaliacao(grade_id, periodo_id, tipo, nome, data_avaliacao, peso):
     with cursor(commit=True) as cur:
         cur.execute(
-            """INSERT INTO avaliacao (Grade_idGrade, Periodo_idPeriodo, Tipo, NomeAvaliacao, DataAvaliacao, Peso)
-               VALUES (%s, %s, %s, %s, %s, %s) RETURNING idAvaliacao""",
+            """INSERT INTO avaliacao (grade_idgrade, periodo_idperiodo, tipo, nomeavaliacao, dataavaliacao, peso)
+               VALUES (%s, %s, %s, %s, %s, %s) RETURNING idavaliacao""",
             (grade_id, periodo_id, tipo, nome, data_avaliacao, peso),
         )
         novo_id = cur.fetchone()["idavaliacao"]
-        cur.execute("""SELECT idAvaliacao AS "idAvaliacao", Grade_idGrade AS "Grade_idGrade", Periodo_idPeriodo AS "Periodo_idPeriodo",
-                Tipo AS "Tipo", NomeAvaliacao AS "NomeAvaliacao", DataAvaliacao AS "DataAvaliacao",
-                Peso AS "Peso"
-                FROM avaliacao WHERE idAvaliacao = %s""", (novo_id,))
+        cur.execute("""SELECT idavaliacao AS "idAvaliacao", grade_idgrade AS "Grade_idGrade", periodo_idperiodo AS "Periodo_idPeriodo",
+                tipo AS "Tipo", nomeavaliacao AS "NomeAvaliacao", dataavaliacao AS "DataAvaliacao",
+                peso AS "Peso"
+                FROM avaliacao WHERE idavaliacao = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_avaliacoes(grade_id: int | None = None, periodo_id: int | None = None):
-    query = """SELECT idAvaliacao AS "idAvaliacao", Grade_idGrade AS "Grade_idGrade", Periodo_idPeriodo AS "Periodo_idPeriodo",
-                Tipo AS "Tipo", NomeAvaliacao AS "NomeAvaliacao", DataAvaliacao AS "DataAvaliacao",
-                Peso AS "Peso"
+    query = """SELECT idavaliacao AS "idAvaliacao", grade_idgrade AS "Grade_idGrade", periodo_idperiodo AS "Periodo_idPeriodo",
+                tipo AS "Tipo", nomeavaliacao AS "NomeAvaliacao", dataavaliacao AS "DataAvaliacao",
+                peso AS "Peso"
                 FROM avaliacao WHERE 1=1"""
     params = []
     if grade_id:
-        query += " AND Grade_idGrade = %s"
+        query += " AND grade_idgrade = %s"
         params.append(grade_id)
     if periodo_id:
-        query += " AND Periodo_idPeriodo = %s"
+        query += " AND periodo_idperiodo = %s"
         params.append(periodo_id)
-    query += " ORDER BY idAvaliacao"
+    query += " ORDER BY idavaliacao"
     with cursor() as cur:
         cur.execute(query, tuple(params))
         return cur.fetchall()
@@ -905,27 +903,27 @@ def listar_avaliacoes(grade_id: int | None = None, periodo_id: int | None = None
 
 def buscar_avaliacao(id_avaliacao):
     with cursor() as cur:
-        cur.execute("""SELECT idAvaliacao AS "idAvaliacao", Grade_idGrade AS "Grade_idGrade", Periodo_idPeriodo AS "Periodo_idPeriodo",
-                Tipo AS "Tipo", NomeAvaliacao AS "NomeAvaliacao", DataAvaliacao AS "DataAvaliacao",
-                Peso AS "Peso"
-                FROM avaliacao WHERE idAvaliacao = %s""", (id_avaliacao,))
+        cur.execute("""SELECT idavaliacao AS "idAvaliacao", grade_idgrade AS "Grade_idGrade", periodo_idperiodo AS "Periodo_idPeriodo",
+                tipo AS "Tipo", nomeavaliacao AS "NomeAvaliacao", dataavaliacao AS "DataAvaliacao",
+                peso AS "Peso"
+                FROM avaliacao WHERE idavaliacao = %s""", (id_avaliacao,))
         return cur.fetchone()
 
 
 def atualizar_avaliacao(id_avaliacao, campos: dict):
-    set_clause = ", ".join(f"{c} = %s" for c in campos)
+    set_clause = ", ".join(f"{c.lower()} = %s" for c in campos)
     with cursor(commit=True) as cur:
-        cur.execute(f"UPDATE avaliacao SET {set_clause} WHERE idAvaliacao = %s", (*campos.values(), id_avaliacao))
-        cur.execute("""SELECT idAvaliacao AS "idAvaliacao", Grade_idGrade AS "Grade_idGrade", Periodo_idPeriodo AS "Periodo_idPeriodo",
-                Tipo AS "Tipo", NomeAvaliacao AS "NomeAvaliacao", DataAvaliacao AS "DataAvaliacao",
-                Peso AS "Peso"
-                FROM avaliacao WHERE idAvaliacao = %s""", (id_avaliacao,))
+        cur.execute(f"UPDATE avaliacao SET {set_clause} WHERE idavaliacao = %s", (*campos.values(), id_avaliacao))
+        cur.execute("""SELECT idavaliacao AS "idAvaliacao", grade_idgrade AS "Grade_idGrade", periodo_idperiodo AS "Periodo_idPeriodo",
+                tipo AS "Tipo", nomeavaliacao AS "NomeAvaliacao", dataavaliacao AS "DataAvaliacao",
+                peso AS "Peso"
+                FROM avaliacao WHERE idavaliacao = %s""", (id_avaliacao,))
         return cur.fetchone()
 
 
 def excluir_avaliacao(id_avaliacao) -> bool:
     with cursor(commit=True) as cur:
-        cur.execute("DELETE FROM avaliacao WHERE idAvaliacao = %s", (id_avaliacao,))
+        cur.execute("DELETE FROM avaliacao WHERE idavaliacao = %s", (id_avaliacao,))
         return cur.rowcount > 0
 
 
@@ -936,27 +934,27 @@ def excluir_avaliacao(id_avaliacao) -> bool:
 def inserir_nota(avaliacao_id, aluno_id, valor):
     with cursor(commit=True) as cur:
         cur.execute(
-            "INSERT INTO nota (Avaliacao_idAvaliacao, Aluno_idAluno, ValorNota) VALUES (%s, %s, %s) RETURNING idNota",
+            "INSERT INTO nota (avaliacao_idavaliacao, aluno_idaluno, valornota) VALUES (%s, %s, %s) RETURNING idnota",
             (avaliacao_id, aluno_id, valor),
         )
         novo_id = cur.fetchone()["idnota"]
-        cur.execute("""SELECT idNota AS "idNota", Avaliacao_idAvaliacao AS "Avaliacao_idAvaliacao", Aluno_idAluno AS "Aluno_idAluno",
-                ValorNota AS "ValorNota"
-                FROM nota WHERE idNota = %s""", (novo_id,))
+        cur.execute("""SELECT idnota AS "idNota", avaliacao_idavaliacao AS "Avaliacao_idAvaliacao", aluno_idaluno AS "Aluno_idAluno",
+                valornota AS "ValorNota"
+                FROM nota WHERE idnota = %s""", (novo_id,))
         return cur.fetchone()
 
 def listar_notas(avaliacao_id: int | None = None, aluno_id: int | None = None):
-    query = """SELECT idNota AS "idNota", Avaliacao_idAvaliacao AS "Avaliacao_idAvaliacao", Aluno_idAluno AS "Aluno_idAluno",
-                ValorNota AS "ValorNota"
+    query = """SELECT idnota AS "idNota", avaliacao_idavaliacao AS "Avaliacao_idAvaliacao", aluno_idaluno AS "Aluno_idAluno",
+                valornota AS "ValorNota"
                 FROM nota WHERE 1=1"""
     params = []
     if avaliacao_id:
-        query += " AND Avaliacao_idAvaliacao = %s"
+        query += " AND avaliacao_idavaliacao = %s"
         params.append(avaliacao_id)
     if aluno_id:
-        query += " AND Aluno_idAluno = %s"
+        query += " AND aluno_idaluno = %s"
         params.append(aluno_id)
-    query += " ORDER BY idNota"
+    query += " ORDER BY idnota"
     with cursor() as cur:
         cur.execute(query, tuple(params))
         return cur.fetchall()
@@ -964,25 +962,25 @@ def listar_notas(avaliacao_id: int | None = None, aluno_id: int | None = None):
 
 def buscar_nota(id_nota):
     with cursor() as cur:
-        cur.execute("""SELECT idNota AS "idNota", Avaliacao_idAvaliacao AS "Avaliacao_idAvaliacao", Aluno_idAluno AS "Aluno_idAluno",
-                ValorNota AS "ValorNota"
-                FROM nota WHERE idNota = %s""", (id_nota,))
+        cur.execute("""SELECT idnota AS "idNota", avaliacao_idavaliacao AS "Avaliacao_idAvaliacao", aluno_idaluno AS "Aluno_idAluno",
+                valornota AS "ValorNota"
+                FROM nota WHERE idnota = %s""", (id_nota,))
         return cur.fetchone()
 
 
 def atualizar_nota(id_nota, campos: dict):
-    set_clause = ", ".join(f"{c} = %s" for c in campos)
+    set_clause = ", ".join(f"{c.lower()} = %s" for c in campos)
     with cursor(commit=True) as cur:
-        cur.execute(f"UPDATE nota SET {set_clause} WHERE idNota = %s", (*campos.values(), id_nota))
-        cur.execute("""SELECT idNota AS "idNota", Avaliacao_idAvaliacao AS "Avaliacao_idAvaliacao", Aluno_idAluno AS "Aluno_idAluno",
-                ValorNota AS "ValorNota"
-                FROM nota WHERE idNota = %s""", (id_nota,))
+        cur.execute(f"UPDATE nota SET {set_clause} WHERE idnota = %s", (*campos.values(), id_nota))
+        cur.execute("""SELECT idnota AS "idNota", avaliacao_idavaliacao AS "Avaliacao_idAvaliacao", aluno_idaluno AS "Aluno_idAluno",
+                valornota AS "ValorNota"
+                FROM nota WHERE idnota = %s""", (id_nota,))
         return cur.fetchone()
 
 
 def excluir_nota(id_nota) -> bool:
     with cursor(commit=True) as cur:
-        cur.execute("DELETE FROM nota WHERE idNota = %s", (id_nota,))
+        cur.execute("DELETE FROM nota WHERE idnota = %s", (id_nota,))
         return cur.rowcount > 0
 
 
@@ -993,29 +991,29 @@ def excluir_nota(id_nota) -> bool:
 def inserir_frequencia(grade_id, aluno_id, data_frequencia, situacao):
     with cursor(commit=True) as cur:
         cur.execute(
-            """INSERT INTO frequencia (Grade_idGrade, Aluno_idAluno, DataFrequencia, Situacao)
-               VALUES (%s, %s, %s, %s) RETURNING idFrequencia""",
+            """INSERT INTO frequencia (grade_idgrade, aluno_idaluno, datafrequencia, situacao)
+               VALUES (%s, %s, %s, %s) RETURNING idfrequencia""",
             (grade_id, aluno_id, data_frequencia, situacao),
         )
         novo_id = cur.fetchone()["idfrequencia"]
-        cur.execute("""SELECT idFrequencia AS "idFrequencia", Grade_idGrade AS "Grade_idGrade", Aluno_idAluno AS "Aluno_idAluno",
-                DataFrequencia AS "DataFrequencia", Situacao AS "Situacao"
-                FROM frequencia WHERE idFrequencia = %s""", (novo_id,))
+        cur.execute("""SELECT idfrequencia AS "idFrequencia", grade_idgrade AS "Grade_idGrade", aluno_idaluno AS "Aluno_idAluno",
+                datafrequencia AS "DataFrequencia", situacao AS "Situacao"
+                FROM frequencia WHERE idfrequencia = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_frequencias(grade_id: int | None = None, aluno_id: int | None = None):
-    query = """SELECT idFrequencia AS "idFrequencia", Grade_idGrade AS "Grade_idGrade", Aluno_idAluno AS "Aluno_idAluno",
-                DataFrequencia AS "DataFrequencia", Situacao AS "Situacao"
+    query = """SELECT idfrequencia AS "idFrequencia", grade_idgrade AS "Grade_idGrade", aluno_idaluno AS "Aluno_idAluno",
+                datafrequencia AS "DataFrequencia", situacao AS "Situacao"
                 FROM frequencia WHERE 1=1"""
     params = []
     if grade_id:
-        query += " AND Grade_idGrade = %s"
+        query += " AND grade_idgrade = %s"
         params.append(grade_id)
     if aluno_id:
-        query += " AND Aluno_idAluno = %s"
+        query += " AND aluno_idaluno = %s"
         params.append(aluno_id)
-    query += " ORDER BY idFrequencia"
+    query += " ORDER BY idfrequencia"
     with cursor() as cur:
         cur.execute(query, tuple(params))
         return cur.fetchall()
@@ -1023,28 +1021,28 @@ def listar_frequencias(grade_id: int | None = None, aluno_id: int | None = None)
 
 def buscar_frequencia(id_frequencia):
     with cursor() as cur:
-        cur.execute("""SELECT idFrequencia AS "idFrequencia", Grade_idGrade AS "Grade_idGrade", Aluno_idAluno AS "Aluno_idAluno",
-                DataFrequencia AS "DataFrequencia", Situacao AS "Situacao"
-                FROM frequencia WHERE idFrequencia = %s""", (id_frequencia,))
+        cur.execute("""SELECT idfrequencia AS "idFrequencia", grade_idgrade AS "Grade_idGrade", aluno_idaluno AS "Aluno_idAluno",
+                datafrequencia AS "DataFrequencia", situacao AS "Situacao"
+                FROM frequencia WHERE idfrequencia = %s""", (id_frequencia,))
         return cur.fetchone()
 
 
 def atualizar_frequencia(id_frequencia, campos: dict):
-    set_clause = ", ".join(f"{c} = %s" for c in campos)
+    set_clause = ", ".join(f"{c.lower()} = %s" for c in campos)
     with cursor(commit=True) as cur:
         cur.execute(
-            f"UPDATE frequencia SET {set_clause} WHERE idFrequencia = %s",
+            f"UPDATE frequencia SET {set_clause} WHERE idfrequencia = %s",
             (*campos.values(), id_frequencia),
         )
-        cur.execute("""SELECT idFrequencia AS "idFrequencia", Grade_idGrade AS "Grade_idGrade", Aluno_idAluno AS "Aluno_idAluno",
-                DataFrequencia AS "DataFrequencia", Situacao AS "Situacao"
-                FROM frequencia WHERE idFrequencia = %s""", (id_frequencia,))
+        cur.execute("""SELECT idfrequencia AS "idFrequencia", grade_idgrade AS "Grade_idGrade", aluno_idaluno AS "Aluno_idAluno",
+                datafrequencia AS "DataFrequencia", situacao AS "Situacao"
+                FROM frequencia WHERE idfrequencia = %s""", (id_frequencia,))
         return cur.fetchone()
 
 
 def excluir_frequencia(id_frequencia) -> bool:
     with cursor(commit=True) as cur:
-        cur.execute("DELETE FROM frequencia WHERE idFrequencia = %s", (id_frequencia,))
+        cur.execute("DELETE FROM frequencia WHERE idfrequencia = %s", (id_frequencia,))
         return cur.rowcount > 0
 
 
@@ -1055,29 +1053,29 @@ def excluir_frequencia(id_frequencia) -> bool:
 def inserir_boletim(aluno_id, periodo_id, materia_id, media_final, situacao):
     with cursor(commit=True) as cur:
         cur.execute(
-            """INSERT INTO boletim (Aluno_idAluno, Periodo_idPeriodo, Materia_idMateria, MediaFinal, Situacao)
-               VALUES (%s, %s, %s, %s, %s) RETURNING idBoletim""",
+            """INSERT INTO boletim (aluno_idaluno, periodo_idperiodo, materia_idmateria, mediafinal, situacao)
+               VALUES (%s, %s, %s, %s, %s) RETURNING idboletim""",
             (aluno_id, periodo_id, materia_id, media_final, situacao),
         )
         novo_id = cur.fetchone()["idboletim"]
-        cur.execute("""SELECT idBoletim AS "idBoletim", Aluno_idAluno AS "Aluno_idAluno", Periodo_idPeriodo AS "Periodo_idPeriodo",
-                Materia_idMateria AS "Materia_idMateria", MediaFinal AS "MediaFinal", Situacao AS "Situacao"
-                FROM boletim WHERE idBoletim = %s""", (novo_id,))
+        cur.execute("""SELECT idboletim AS "idBoletim", aluno_idaluno AS "Aluno_idAluno", periodo_idperiodo AS "Periodo_idPeriodo",
+                materia_idmateria AS "Materia_idMateria", mediafinal AS "MediaFinal", situacao AS "Situacao"
+                FROM boletim WHERE idboletim = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_boletins(aluno_id: int | None = None, periodo_id: int | None = None):
-    query = """SELECT idBoletim AS "idBoletim", Aluno_idAluno AS "Aluno_idAluno", Periodo_idPeriodo AS "Periodo_idPeriodo",
-                Materia_idMateria AS "Materia_idMateria", MediaFinal AS "MediaFinal", Situacao AS "Situacao"
+    query = """SELECT idboletim AS "idBoletim", aluno_idaluno AS "Aluno_idAluno", periodo_idperiodo AS "Periodo_idPeriodo",
+                materia_idmateria AS "Materia_idMateria", mediafinal AS "MediaFinal", situacao AS "Situacao"
                 FROM boletim WHERE 1=1"""
     params = []
     if aluno_id:
-        query += " AND Aluno_idAluno = %s"
+        query += " AND aluno_idaluno = %s"
         params.append(aluno_id)
     if periodo_id:
-        query += " AND Periodo_idPeriodo = %s"
+        query += " AND periodo_idperiodo = %s"
         params.append(periodo_id)
-    query += " ORDER BY idBoletim"
+    query += " ORDER BY idboletim"
     with cursor() as cur:
         cur.execute(query, tuple(params))
         return cur.fetchall()
@@ -1085,25 +1083,25 @@ def listar_boletins(aluno_id: int | None = None, periodo_id: int | None = None):
 
 def buscar_boletim(id_boletim):
     with cursor() as cur:
-        cur.execute("""SELECT idBoletim AS "idBoletim", Aluno_idAluno AS "Aluno_idAluno", Periodo_idPeriodo AS "Periodo_idPeriodo",
-                Materia_idMateria AS "Materia_idMateria", MediaFinal AS "MediaFinal", Situacao AS "Situacao"
-                FROM boletim WHERE idBoletim = %s""", (id_boletim,))
+        cur.execute("""SELECT idboletim AS "idBoletim", aluno_idaluno AS "Aluno_idAluno", periodo_idperiodo AS "Periodo_idPeriodo",
+                materia_idmateria AS "Materia_idMateria", mediafinal AS "MediaFinal", situacao AS "Situacao"
+                FROM boletim WHERE idboletim = %s""", (id_boletim,))
         return cur.fetchone()
 
 
 def atualizar_boletim(id_boletim, campos: dict):
-    set_clause = ", ".join(f"{c} = %s" for c in campos)
+    set_clause = ", ".join(f"{c.lower()} = %s" for c in campos)
     with cursor(commit=True) as cur:
-        cur.execute(f"UPDATE boletim SET {set_clause} WHERE idBoletim = %s", (*campos.values(), id_boletim))
-        cur.execute("""SELECT idBoletim AS "idBoletim", Aluno_idAluno AS "Aluno_idAluno", Periodo_idPeriodo AS "Periodo_idPeriodo",
-                Materia_idMateria AS "Materia_idMateria", MediaFinal AS "MediaFinal", Situacao AS "Situacao"
-                FROM boletim WHERE idBoletim = %s""", (id_boletim,))
+        cur.execute(f"UPDATE boletim SET {set_clause} WHERE idboletim = %s", (*campos.values(), id_boletim))
+        cur.execute("""SELECT idboletim AS "idBoletim", aluno_idaluno AS "Aluno_idAluno", periodo_idperiodo AS "Periodo_idPeriodo",
+                materia_idmateria AS "Materia_idMateria", mediafinal AS "MediaFinal", situacao AS "Situacao"
+                FROM boletim WHERE idboletim = %s""", (id_boletim,))
         return cur.fetchone()
 
 
 def excluir_boletim(id_boletim) -> bool:
     with cursor(commit=True) as cur:
-        cur.execute("DELETE FROM boletim WHERE idBoletim = %s", (id_boletim,))
+        cur.execute("DELETE FROM boletim WHERE idboletim = %s", (id_boletim,))
         return cur.rowcount > 0
 
 
@@ -1114,31 +1112,31 @@ def excluir_boletim(id_boletim) -> bool:
 def inserir_boleto(numero_boleto, aluno_id, competencia, valor, data_vencimento, situacao):
     with cursor(commit=True) as cur:
         cur.execute(
-            """INSERT INTO boleto (NumeroBoleto, Aluno_idAluno, Competencia, ValorMensalidade, DataVencimento, Situacao)
-               VALUES (%s, %s, %s, %s, %s, %s) RETURNING idBoleto""",
+            """INSERT INTO boleto (numeroboleto, aluno_idaluno, competencia, valormensalidade, datavencimento, situacao)
+               VALUES (%s, %s, %s, %s, %s, %s) RETURNING idboleto""",
             (numero_boleto, aluno_id, competencia, valor, data_vencimento, situacao),
         )
         novo_id = cur.fetchone()["idboleto"]
-        cur.execute("""SELECT idBoleto AS "idBoleto", NumeroBoleto AS "NumeroBoleto", Aluno_idAluno AS "Aluno_idAluno",
-                Competencia AS "Competencia", ValorMensalidade AS "ValorMensalidade", DataVencimento AS "DataVencimento",
-                DataPagamento AS "DataPagamento", Situacao AS "Situacao"
-                FROM boleto WHERE idBoleto = %s""", (novo_id,))
+        cur.execute("""SELECT idboleto AS "idBoleto", numeroboleto AS "NumeroBoleto", aluno_idaluno AS "Aluno_idAluno",
+                competencia AS "Competencia", valormensalidade AS "ValorMensalidade", datavencimento AS "DataVencimento",
+                datapagamento AS "DataPagamento", situacao AS "Situacao"
+                FROM boleto WHERE idboleto = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_boletos(aluno_id: int | None = None, situacao: str | None = None):
-    query = """SELECT idBoleto AS "idBoleto", NumeroBoleto AS "NumeroBoleto", Aluno_idAluno AS "Aluno_idAluno",
-                Competencia AS "Competencia", ValorMensalidade AS "ValorMensalidade", DataVencimento AS "DataVencimento",
-                DataPagamento AS "DataPagamento", Situacao AS "Situacao"
+    query = """SELECT idboleto AS "idBoleto", numeroboleto AS "NumeroBoleto", aluno_idaluno AS "Aluno_idAluno",
+                competencia AS "Competencia", valormensalidade AS "ValorMensalidade", datavencimento AS "DataVencimento",
+                datapagamento AS "DataPagamento", situacao AS "Situacao"
                 FROM boleto WHERE 1=1"""
     params = []
     if aluno_id:
-        query += " AND Aluno_idAluno = %s"
+        query += " AND aluno_idaluno = %s"
         params.append(aluno_id)
     if situacao:
-        query += " AND Situacao = %s"
+        query += " AND situacao = %s"
         params.append(situacao)
-    query += " ORDER BY idBoleto"
+    query += " ORDER BY idboleto"
     with cursor() as cur:
         cur.execute(query, tuple(params))
         return cur.fetchall()
@@ -1146,25 +1144,25 @@ def listar_boletos(aluno_id: int | None = None, situacao: str | None = None):
 
 def buscar_boleto(id_boleto):
     with cursor() as cur:
-        cur.execute("""SELECT idBoleto AS "idBoleto", NumeroBoleto AS "NumeroBoleto", Aluno_idAluno AS "Aluno_idAluno",
-                Competencia AS "Competencia", ValorMensalidade AS "ValorMensalidade", DataVencimento AS "DataVencimento",
-                DataPagamento AS "DataPagamento", Situacao AS "Situacao"
-                FROM boleto WHERE idBoleto = %s""", (id_boleto,))
+        cur.execute("""SELECT idboleto AS "idBoleto", numeroboleto AS "NumeroBoleto", aluno_idaluno AS "Aluno_idAluno",
+                competencia AS "Competencia", valormensalidade AS "ValorMensalidade", datavencimento AS "DataVencimento",
+                datapagamento AS "DataPagamento", situacao AS "Situacao"
+                FROM boleto WHERE idboleto = %s""", (id_boleto,))
         return cur.fetchone()
 
 
 def atualizar_boleto(id_boleto, campos: dict):
-    set_clause = ", ".join(f"{c} = %s" for c in campos)
+    set_clause = ", ".join(f"{c.lower()} = %s" for c in campos)
     with cursor(commit=True) as cur:
-        cur.execute(f"UPDATE boleto SET {set_clause} WHERE idBoleto = %s", (*campos.values(), id_boleto))
-        cur.execute("""SELECT idBoleto AS "idBoleto", NumeroBoleto AS "NumeroBoleto", Aluno_idAluno AS "Aluno_idAluno",
-                Competencia AS "Competencia", ValorMensalidade AS "ValorMensalidade", DataVencimento AS "DataVencimento",
-                DataPagamento AS "DataPagamento", Situacao AS "Situacao"
-                FROM boleto WHERE idBoleto = %s""", (id_boleto,))
+        cur.execute(f"UPDATE boleto SET {set_clause} WHERE idboleto = %s", (*campos.values(), id_boleto))
+        cur.execute("""SELECT idboleto AS "idBoleto", numeroboleto AS "NumeroBoleto", aluno_idaluno AS "Aluno_idAluno",
+                competencia AS "Competencia", valormensalidade AS "ValorMensalidade", datavencimento AS "DataVencimento",
+                datapagamento AS "DataPagamento", situacao AS "Situacao"
+                FROM boleto WHERE idboleto = %s""", (id_boleto,))
         return cur.fetchone()
 
 
 def excluir_boleto(id_boleto) -> bool:
     with cursor(commit=True) as cur:
-        cur.execute("DELETE FROM boleto WHERE idBoleto = %s", (id_boleto,))
+        cur.execute("DELETE FROM boleto WHERE idboleto = %s", (id_boleto,))
         return cur.rowcount > 0
