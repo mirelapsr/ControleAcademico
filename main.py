@@ -105,8 +105,8 @@ def tratar_integrity_error(exc: Exception):
 def criar_escola(payload: EscolaEntrada):
     try:
         return db.inserir_escola(
-            payload.NomeEscola, payload.CodigoInep, payload.Cnpj,
-            payload.EnderecoEscola, payload.TelefoneEscola, payload.EmailEscola,
+            payload.nome_escola, payload.codigo_inep, payload.cnpj,
+            payload.endereco_escola, payload.telefone_escola, payload.email_escola,
         )
     except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
@@ -152,7 +152,7 @@ def deletar_escola(id_escola: int):
 
 @app.post("/periodos", response_model=PeriodoSaida, status_code=status.HTTP_201_CREATED, tags=["Periodo"])
 def criar_periodo(payload: PeriodoEntrada):
-    return db.inserir_periodo(payload.Ano, payload.NomePeriodo, payload.DataInicio, payload.DataFim, payload.Situacao.value)
+    return db.inserir_periodo(payload.ano, payload.nome_periodo, payload.data_inicio, payload.data_fim, payload.situacao.value)
 
 
 @app.get("/periodos", response_model=List[PeriodoSaida], tags=["Periodo"])
@@ -191,7 +191,7 @@ def deletar_periodo(id_periodo: int):
 
 @app.post("/materias", response_model=MateriaSaida, status_code=status.HTTP_201_CREATED, tags=["Materia"])
 def criar_materia(payload: MateriaEntrada):
-    return db.inserir_materia(payload.NomeMateria, payload.CargaHoraria)
+    return db.inserir_materia(payload.nome_materia, payload.carga_horaria)
 
 
 @app.get("/materias", response_model=List[MateriaSaida], tags=["Materia"])
@@ -231,8 +231,8 @@ def deletar_materia(id_materia: int):
 @app.post("/responsaveis", response_model=ResponsavelSaida, status_code=status.HTTP_201_CREATED, tags=["Responsavel"])
 def criar_responsavel(payload: ResponsavelEntrada):
     return db.inserir_responsavel(
-        payload.NomeResp, payload.CpfResp, payload.TelefoneResp,
-        payload.EmailResp, payload.CepResp, payload.EnderecoResp,
+        payload.nome_resp, payload.cpf_resp, payload.telefone_resp,
+        payload.email_resp, payload.cep_resp, payload.endereco_resp,
     )
 
 
@@ -273,9 +273,9 @@ def deletar_responsavel(id_responsavel: int):
 @app.post("/alunos", response_model=AlunoSaida, status_code=status.HTTP_201_CREATED, tags=["Aluno"])
 def criar_aluno(payload: AlunoEntrada):
     return db.inserir_aluno(
-        payload.NumeroMatricula, payload.NomeAluno, payload.DataNascimento, payload.CpfAluno,
-        payload.TelefoneAluno, payload.EmailAluno, payload.CepAluno, payload.EnderecoAluno,
-        payload.Situacao.value,
+        payload.numero_matricula, payload.nome_aluno, payload.data_nascimento, payload.cpf_aluno,
+        payload.telefone_aluno, payload.email_aluno, payload.cep_aluno, payload.endereco_aluno,
+        payload.situacao.value,
     )
 
 
@@ -343,8 +343,8 @@ def medias_dinamicas_do_aluno(id_aluno: int):
 def criar_turma(payload: TurmaEntrada):
     try:
         return db.inserir_turma(
-            payload.NomeTurma, payload.Serie, payload.Turno.value,
-            payload.Capacidade, payload.Escola_idEscola, payload.AnoLetivo,
+            payload.nome_turma, payload.serie, payload.turno.value,
+            payload.capacidade, payload.escola_id, payload.ano_letivo,
         )
     except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
@@ -391,8 +391,8 @@ def deletar_turma(id_turma: int):
 def criar_professor(payload: ProfessorEntrada):
     try:
         return db.inserir_professor(
-            payload.NomeProf, payload.CpfProf, payload.TelefoneProf, payload.EmailProf,
-            payload.CepProf, payload.EnderecoProf, payload.Situacao.value, payload.Escola_idEscola,
+            payload.nome_prof, payload.cpf_prof, payload.telefone_prof, payload.email_prof,
+            payload.cep_prof, payload.endereco_prof, payload.situacao.value, payload.escola_id,
         )
     except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
@@ -438,7 +438,7 @@ def deletar_professor(id_professor: int):
 @app.post("/matriculas", response_model=MatriculaSaida, status_code=status.HTTP_201_CREATED, tags=["Matricula"])
 def criar_matricula(payload: MatriculaEntrada):
     try:
-        return db.inserir_matricula(payload.Aluno_idAluno, payload.Turma_idTurma, payload.DataMatricula, payload.Situacao.value)
+        return db.inserir_matricula(payload.aluno_id, payload.turma_id, payload.data_matricula, payload.situacao.value)
     except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
@@ -492,7 +492,7 @@ def vincular_responsavel(id_aluno: int, id_responsavel: int, payload: VinculoRes
     if not db.buscar_responsavel(id_responsavel):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Responsável não encontrado.")
     try:
-        return db.vincular_responsavel(id_aluno, id_responsavel, payload.TipoResponsavel.value, int(payload.ResponsavelFinanceiro))
+        return db.vincular_responsavel(id_aluno, id_responsavel, payload.tipo_responsavel.value, int(payload.responsavel_financeiro))
     except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
@@ -526,7 +526,7 @@ def desvincular_responsavel(id_aluno: int, id_responsavel: int):
 @app.post("/grades", response_model=GradeCurricularSaida, status_code=status.HTTP_201_CREATED, tags=["Grade Curricular"])
 def criar_grade(payload: GradeCurricularEntrada):
     try:
-        return db.inserir_grade(payload.Turma_idTurma, payload.Materia_idMateria, payload.Professor_idProfessor)
+        return db.inserir_grade(payload.turma_id, payload.materia_id, payload.professor_id)
     except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
@@ -562,8 +562,8 @@ def deletar_grade(id_grade: int):
 def criar_avaliacao(payload: AvaliacaoEntrada):
     try:
         return db.inserir_avaliacao(
-            payload.Grade_idGrade, payload.Periodo_idPeriodo, payload.Tipo.value,
-            payload.NomeAvaliacao, payload.DataAvaliacao, payload.Peso,
+            payload.grade_id, payload.periodo_id, payload.tipo.value,
+            payload.nome_avaliacao, payload.data_avaliacao, payload.peso,
         )
     except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
@@ -609,7 +609,7 @@ def deletar_avaliacao(id_avaliacao: int):
 @app.post("/notas", response_model=NotaSaida, status_code=status.HTTP_201_CREATED, tags=["Nota"])
 def criar_nota(payload: NotaEntrada):
     try:
-        return db.inserir_nota(payload.Avaliacao_idAvaliacao, payload.Aluno_idAluno, payload.ValorNota)
+        return db.inserir_nota(payload.avaliacao_id, payload.aluno_id, payload.valor_nota)
     except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
@@ -654,7 +654,7 @@ def deletar_nota(id_nota: int):
 @app.post("/frequencias", response_model=FrequenciaSaida, status_code=status.HTTP_201_CREATED, tags=["Frequencia"])
 def criar_frequencia(payload: FrequenciaEntrada):
     try:
-        return db.inserir_frequencia(payload.Grade_idGrade, payload.Aluno_idAluno, payload.DataFrequencia, payload.Situacao.value)
+        return db.inserir_frequencia(payload.grade_id, payload.aluno_id, payload.data_frequencia, payload.situacao.value)
     except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
@@ -700,8 +700,8 @@ def deletar_frequencia(id_frequencia: int):
 def criar_boletim(payload: BoletimEntrada):
     try:
         return db.inserir_boletim(
-            payload.Aluno_idAluno, payload.Periodo_idPeriodo, payload.Materia_idMateria,
-            payload.MediaFinal, payload.Situacao.value,
+            payload.aluno_id, payload.periodo_id, payload.materia_id,
+            payload.media_final, payload.situacao.value,
         )
     except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
@@ -748,8 +748,8 @@ def deletar_boletim(id_boletim: int):
 def criar_boleto(payload: BoletoEntrada):
     try:
         return db.inserir_boleto(
-            payload.NumeroBoleto, payload.Aluno_idAluno, payload.Competencia,
-            payload.ValorMensalidade, payload.DataVencimento, payload.Situacao.value,
+            payload.numero_boleto, payload.aluno_id, payload.competencia,
+            payload.valor_mensalidade, payload.data_vencimento, payload.situacao.value,
         )
     except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
