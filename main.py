@@ -8,14 +8,16 @@ main.py — CAMADA DE ROTAS
 Tratamento de erros:
   - 404 Not Found   -> ID informado não existe.
   - 409 Conflict     -> violação de UNIQUE (ex.: grade turma+matéria repetida,
-                        nota duplicada para a mesma avaliação/aluno, etc.).
-  - 400 Bad Request  -> violação de FK (ex.: Escola_idEscola inexistente) ou
+                        nota duplicada para a mesma avaliação/aluno, etc.) ou
+                        violação de regra de negócio via TRIGGER (RAISE EXCEPTION).
+  - 400 Bad Request  -> violação de FK, violação de CHECK constraint, ou
                         nenhum campo enviado para atualização.
 """
 
 from typing import List, Optional
 
-import pymysql
+import psycopg2
+import psycopg2.errors
 from fastapi import FastAPI, HTTPException, Query, status
 
 import db
@@ -44,9 +46,9 @@ app = FastAPI(
 )
 
 
-@app.on_event("startup")
-def ao_iniciar():
-    db.criar_tabelas()
+#@app.on_event("startup")
+#def ao_iniciar():
+#    db.criar_tabelas()
 
 
 @app.get("/", tags=["Health"])
@@ -70,16 +72,29 @@ def campos_para_update(payload) -> dict:
     return campos
 
 
-def tratar_integrity_error(exc: pymysql.err.IntegrityError):
-    """Traduz IntegrityError do MySQL em HTTPException.
-    1062 = Duplicate entry (UNIQUE) -> 409
-    1451/1452 = violação de FK -> 400
+def tratar_integrity_error(exc: Exception):
+    """Traduz erros do PostgreSQL (psycopg2) em HTTPException.
+    - psycopg2.errors.RaiseException -> violação de regra de negócio via TRIGGER (RAISE EXCEPTION) -> 409
+    - psycopg2.IntegrityError, conforme exc.pgcode:
+        23505 (UniqueViolation)      -> 409
+        23503 (ForeignKeyViolation)  -> 400
+        23514 (CheckViolation)       -> 400
     """
-    codigo = exc.args[0] if exc.args else None
-    mensagem = exc.args[1] if len(exc.args) > 1 else str(exc)
-    if codigo == 1062:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Registro duplicado: {mensagem}")
-    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Erro de integridade referencial: {mensagem}")
+    if isinstance(exc, psycopg2.errors.RaiseException):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc).strip())
+
+    if isinstance(exc, psycopg2.IntegrityError):
+        pgcode = getattr(exc, "pgcode", None)
+        mensagem = str(exc).strip()
+        if pgcode == "23505":
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"Registro duplicado: {mensagem}")
+        if pgcode == "23503":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Erro de integridade referencial: {mensagem}")
+        if pgcode == "23514":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Violação de regra de validação: {mensagem}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Erro de integridade: {mensagem}")
+
+    raise exc
 
 
 # ===========================================================================
@@ -90,10 +105,10 @@ def tratar_integrity_error(exc: pymysql.err.IntegrityError):
 def criar_escola(payload: EscolaEntrada):
     try:
         return db.inserir_escola(
-            payload.NomeEscola, payload.CodigoInep, payload.Cnpj,
-            payload.EnderecoEscola, payload.TelefoneEscola, payload.EmailEscola,
+            payload.nome_escola, payload.codigo_inep, payload.cnpj,
+            payload.endereco_escola, payload.telefone_escola, payload.email_escola,
         )
-    except pymysql.err.IntegrityError as exc:
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -117,7 +132,7 @@ def atualizar_escola(id_escola: int, payload: EscolaAtualizacao):
     campos = campos_para_update(payload)
     try:
         return db.atualizar_escola(id_escola, campos)
-    except pymysql.err.IntegrityError as exc:
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -127,7 +142,7 @@ def deletar_escola(id_escola: int):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Escola não encontrada.")
     try:
         db.excluir_escola(id_escola)
-    except pymysql.err.IntegrityError as exc:
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -137,7 +152,7 @@ def deletar_escola(id_escola: int):
 
 @app.post("/periodos", response_model=PeriodoSaida, status_code=status.HTTP_201_CREATED, tags=["Periodo"])
 def criar_periodo(payload: PeriodoEntrada):
-    return db.inserir_periodo(payload.Ano, payload.NomePeriodo, payload.DataInicio, payload.DataFim, payload.Situacao.value)
+    return db.inserir_periodo(payload.ano, payload.nome_periodo, payload.data_inicio, payload.data_fim, payload.situacao.value)
 
 
 @app.get("/periodos", response_model=List[PeriodoSaida], tags=["Periodo"])
@@ -166,7 +181,7 @@ def deletar_periodo(id_periodo: int):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Período não encontrado.")
     try:
         db.excluir_periodo(id_periodo)
-    except pymysql.err.IntegrityError as exc:
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -176,7 +191,7 @@ def deletar_periodo(id_periodo: int):
 
 @app.post("/materias", response_model=MateriaSaida, status_code=status.HTTP_201_CREATED, tags=["Materia"])
 def criar_materia(payload: MateriaEntrada):
-    return db.inserir_materia(payload.NomeMateria, payload.CargaHoraria)
+    return db.inserir_materia(payload.nome_materia, payload.carga_horaria)
 
 
 @app.get("/materias", response_model=List[MateriaSaida], tags=["Materia"])
@@ -205,7 +220,7 @@ def deletar_materia(id_materia: int):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Matéria não encontrada.")
     try:
         db.excluir_materia(id_materia)
-    except pymysql.err.IntegrityError as exc:
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -216,8 +231,8 @@ def deletar_materia(id_materia: int):
 @app.post("/responsaveis", response_model=ResponsavelSaida, status_code=status.HTTP_201_CREATED, tags=["Responsavel"])
 def criar_responsavel(payload: ResponsavelEntrada):
     return db.inserir_responsavel(
-        payload.NomeResp, payload.CpfResp, payload.TelefoneResp,
-        payload.EmailResp, payload.CepResp, payload.EnderecoResp,
+        payload.nome_resp, payload.cpf_resp, payload.telefone_resp,
+        payload.email_resp, payload.cep_resp, payload.endereco_resp,
     )
 
 
@@ -247,7 +262,7 @@ def deletar_responsavel(id_responsavel: int):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Responsável não encontrado.")
     try:
         db.excluir_responsavel(id_responsavel)
-    except pymysql.err.IntegrityError as exc:
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -258,9 +273,9 @@ def deletar_responsavel(id_responsavel: int):
 @app.post("/alunos", response_model=AlunoSaida, status_code=status.HTTP_201_CREATED, tags=["Aluno"])
 def criar_aluno(payload: AlunoEntrada):
     return db.inserir_aluno(
-        payload.NumeroMatricula, payload.NomeAluno, payload.DataNascimento, payload.CpfAluno,
-        payload.TelefoneAluno, payload.EmailAluno, payload.CepAluno, payload.EnderecoAluno,
-        payload.Situacao.value,
+        payload.numero_matricula, payload.nome_aluno, payload.data_nascimento, payload.cpf_aluno,
+        payload.telefone_aluno, payload.email_aluno, payload.cep_aluno, payload.endereco_aluno,
+        payload.situacao.value,
     )
 
 
@@ -290,7 +305,7 @@ def deletar_aluno(id_aluno: int):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Aluno não encontrado.")
     try:
         db.excluir_aluno(id_aluno)
-    except pymysql.err.IntegrityError as exc:
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -328,10 +343,10 @@ def medias_dinamicas_do_aluno(id_aluno: int):
 def criar_turma(payload: TurmaEntrada):
     try:
         return db.inserir_turma(
-            payload.NomeTurma, payload.Serie, payload.Turno.value,
-            payload.Capacidade, payload.Escola_idEscola, payload.AnoLetivo,
+            payload.nome_turma, payload.serie, payload.turno.value,
+            payload.capacidade, payload.escola_id, payload.ano_letivo,
         )
-    except pymysql.err.IntegrityError as exc:
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -354,7 +369,7 @@ def atualizar_turma(id_turma: int, payload: TurmaAtualizacao):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Turma não encontrada.")
     try:
         return db.atualizar_turma(id_turma, campos_para_update(payload))
-    except pymysql.err.IntegrityError as exc:
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -364,7 +379,7 @@ def deletar_turma(id_turma: int):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Turma não encontrada.")
     try:
         db.excluir_turma(id_turma)
-    except pymysql.err.IntegrityError as exc:
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -376,10 +391,10 @@ def deletar_turma(id_turma: int):
 def criar_professor(payload: ProfessorEntrada):
     try:
         return db.inserir_professor(
-            payload.NomeProf, payload.CpfProf, payload.TelefoneProf, payload.EmailProf,
-            payload.CepProf, payload.EnderecoProf, payload.Situacao.value, payload.Escola_idEscola,
+            payload.nome_prof, payload.cpf_prof, payload.telefone_prof, payload.email_prof,
+            payload.cep_prof, payload.endereco_prof, payload.situacao.value, payload.escola_id,
         )
-    except pymysql.err.IntegrityError as exc:
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -402,7 +417,7 @@ def atualizar_professor(id_professor: int, payload: ProfessorAtualizacao):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Professor não encontrado.")
     try:
         return db.atualizar_professor(id_professor, campos_para_update(payload))
-    except pymysql.err.IntegrityError as exc:
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -412,7 +427,7 @@ def deletar_professor(id_professor: int):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Professor não encontrado.")
     try:
         db.excluir_professor(id_professor)
-    except pymysql.err.IntegrityError as exc:
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -423,8 +438,8 @@ def deletar_professor(id_professor: int):
 @app.post("/matriculas", response_model=MatriculaSaida, status_code=status.HTTP_201_CREATED, tags=["Matricula"])
 def criar_matricula(payload: MatriculaEntrada):
     try:
-        return db.inserir_matricula(payload.Aluno_idAluno, payload.Turma_idTurma, payload.DataMatricula, payload.Situacao.value)
-    except pymysql.err.IntegrityError as exc:
+        return db.inserir_matricula(payload.aluno_id, payload.turma_id, payload.data_matricula, payload.situacao.value)
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -447,7 +462,7 @@ def atualizar_matricula(id_matricula: int, payload: MatriculaAtualizacao):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Matrícula não encontrada.")
     try:
         return db.atualizar_matricula(id_matricula, campos_para_update(payload))
-    except pymysql.err.IntegrityError as exc:
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -455,7 +470,10 @@ def atualizar_matricula(id_matricula: int, payload: MatriculaAtualizacao):
 def deletar_matricula(id_matricula: int):
     if not db.buscar_matricula(id_matricula):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Matrícula não encontrada.")
-    db.excluir_matricula(id_matricula)
+    try:
+        db.excluir_matricula(id_matricula)
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
+        tratar_integrity_error(exc)
 
 
 # ===========================================================================
@@ -474,8 +492,8 @@ def vincular_responsavel(id_aluno: int, id_responsavel: int, payload: VinculoRes
     if not db.buscar_responsavel(id_responsavel):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Responsável não encontrado.")
     try:
-        return db.vincular_responsavel(id_aluno, id_responsavel, payload.TipoResponsavel.value, int(payload.ResponsavelFinanceiro))
-    except pymysql.err.IntegrityError as exc:
+        return db.vincular_responsavel(id_aluno, id_responsavel, payload.tipo_responsavel.value, int(payload.responsavel_financeiro))
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -508,8 +526,8 @@ def desvincular_responsavel(id_aluno: int, id_responsavel: int):
 @app.post("/grades", response_model=GradeCurricularSaida, status_code=status.HTTP_201_CREATED, tags=["Grade Curricular"])
 def criar_grade(payload: GradeCurricularEntrada):
     try:
-        return db.inserir_grade(payload.Turma_idTurma, payload.Materia_idMateria, payload.Professor_idProfessor)
-    except pymysql.err.IntegrityError as exc:
+        return db.inserir_grade(payload.turma_id, payload.materia_id, payload.professor_id)
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -532,7 +550,7 @@ def deletar_grade(id_grade: int):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Grade curricular não encontrada.")
     try:
         db.excluir_grade(id_grade)
-    except pymysql.err.IntegrityError as exc:
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -544,10 +562,10 @@ def deletar_grade(id_grade: int):
 def criar_avaliacao(payload: AvaliacaoEntrada):
     try:
         return db.inserir_avaliacao(
-            payload.Grade_idGrade, payload.Periodo_idPeriodo, payload.Tipo.value,
-            payload.NomeAvaliacao, payload.DataAvaliacao, payload.Peso,
+            payload.grade_id, payload.periodo_id, payload.tipo.value,
+            payload.nome_avaliacao, payload.data_avaliacao, payload.peso,
         )
-    except pymysql.err.IntegrityError as exc:
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -570,7 +588,7 @@ def atualizar_avaliacao(id_avaliacao: int, payload: AvaliacaoAtualizacao):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Avaliação não encontrada.")
     try:
         return db.atualizar_avaliacao(id_avaliacao, campos_para_update(payload))
-    except pymysql.err.IntegrityError as exc:
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -580,7 +598,7 @@ def deletar_avaliacao(id_avaliacao: int):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Avaliação não encontrada.")
     try:
         db.excluir_avaliacao(id_avaliacao)
-    except pymysql.err.IntegrityError as exc:
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -591,8 +609,8 @@ def deletar_avaliacao(id_avaliacao: int):
 @app.post("/notas", response_model=NotaSaida, status_code=status.HTTP_201_CREATED, tags=["Nota"])
 def criar_nota(payload: NotaEntrada):
     try:
-        return db.inserir_nota(payload.Avaliacao_idAvaliacao, payload.Aluno_idAluno, payload.ValorNota)
-    except pymysql.err.IntegrityError as exc:
+        return db.inserir_nota(payload.avaliacao_id, payload.aluno_id, payload.valor_nota)
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -613,14 +631,20 @@ def obter_nota(id_nota: int):
 def atualizar_nota(id_nota: int, payload: NotaAtualizacao):
     if not db.buscar_nota(id_nota):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nota não encontrada.")
-    return db.atualizar_nota(id_nota, campos_para_update(payload))
+    try:
+        return db.atualizar_nota(id_nota, campos_para_update(payload))
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
+        tratar_integrity_error(exc)
 
 
 @app.delete("/notas/{id_nota}", status_code=status.HTTP_204_NO_CONTENT, tags=["Nota"])
 def deletar_nota(id_nota: int):
     if not db.buscar_nota(id_nota):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nota não encontrada.")
-    db.excluir_nota(id_nota)
+    try:
+        db.excluir_nota(id_nota)
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
+        tratar_integrity_error(exc)
 
 
 # ===========================================================================
@@ -630,8 +654,8 @@ def deletar_nota(id_nota: int):
 @app.post("/frequencias", response_model=FrequenciaSaida, status_code=status.HTTP_201_CREATED, tags=["Frequencia"])
 def criar_frequencia(payload: FrequenciaEntrada):
     try:
-        return db.inserir_frequencia(payload.Grade_idGrade, payload.Aluno_idAluno, payload.DataFrequencia, payload.Situacao.value)
-    except pymysql.err.IntegrityError as exc:
+        return db.inserir_frequencia(payload.grade_id, payload.aluno_id, payload.data_frequencia, payload.situacao.value)
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -654,7 +678,7 @@ def atualizar_frequencia(id_frequencia: int, payload: FrequenciaAtualizacao):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Registro de frequência não encontrado.")
     try:
         return db.atualizar_frequencia(id_frequencia, campos_para_update(payload))
-    except pymysql.err.IntegrityError as exc:
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -662,7 +686,10 @@ def atualizar_frequencia(id_frequencia: int, payload: FrequenciaAtualizacao):
 def deletar_frequencia(id_frequencia: int):
     if not db.buscar_frequencia(id_frequencia):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Registro de frequência não encontrado.")
-    db.excluir_frequencia(id_frequencia)
+    try:
+        db.excluir_frequencia(id_frequencia)
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
+        tratar_integrity_error(exc)
 
 
 # ===========================================================================
@@ -673,10 +700,10 @@ def deletar_frequencia(id_frequencia: int):
 def criar_boletim(payload: BoletimEntrada):
     try:
         return db.inserir_boletim(
-            payload.Aluno_idAluno, payload.Periodo_idPeriodo, payload.Materia_idMateria,
-            payload.MediaFinal, payload.Situacao.value,
+            payload.aluno_id, payload.periodo_id, payload.materia_id,
+            payload.media_final, payload.situacao.value,
         )
-    except pymysql.err.IntegrityError as exc:
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -697,14 +724,20 @@ def obter_boletim(id_boletim: int):
 def atualizar_boletim(id_boletim: int, payload: BoletimAtualizacao):
     if not db.buscar_boletim(id_boletim):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Boletim não encontrado.")
-    return db.atualizar_boletim(id_boletim, campos_para_update(payload))
+    try:
+        return db.atualizar_boletim(id_boletim, campos_para_update(payload))
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
+        tratar_integrity_error(exc)
 
 
 @app.delete("/boletins/{id_boletim}", status_code=status.HTTP_204_NO_CONTENT, tags=["Boletim"])
 def deletar_boletim(id_boletim: int):
     if not db.buscar_boletim(id_boletim):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Boletim não encontrado.")
-    db.excluir_boletim(id_boletim)
+    try:
+        db.excluir_boletim(id_boletim)
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
+        tratar_integrity_error(exc)
 
 
 # ===========================================================================
@@ -715,10 +748,10 @@ def deletar_boletim(id_boletim: int):
 def criar_boleto(payload: BoletoEntrada):
     try:
         return db.inserir_boleto(
-            payload.NumeroBoleto, payload.Aluno_idAluno, payload.Competencia,
-            payload.ValorMensalidade, payload.DataVencimento, payload.Situacao.value,
+            payload.numero_boleto, payload.aluno_id, payload.competencia,
+            payload.valor_mensalidade, payload.data_vencimento, payload.situacao.value,
         )
-    except pymysql.err.IntegrityError as exc:
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
@@ -739,11 +772,17 @@ def obter_boleto(id_boleto: int):
 def atualizar_boleto(id_boleto: int, payload: BoletoAtualizacao):
     if not db.buscar_boleto(id_boleto):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Boleto não encontrado.")
-    return db.atualizar_boleto(id_boleto, campos_para_update(payload))
+    try:
+        return db.atualizar_boleto(id_boleto, campos_para_update(payload))
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
+        tratar_integrity_error(exc)
 
 
 @app.delete("/boletos/{id_boleto}", status_code=status.HTTP_204_NO_CONTENT, tags=["Boleto"])
 def deletar_boleto(id_boleto: int):
     if not db.buscar_boleto(id_boleto):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Boleto não encontrado.")
-    db.excluir_boleto(id_boleto)
+    try:
+        db.excluir_boleto(id_boleto)
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
+        tratar_integrity_error(exc)

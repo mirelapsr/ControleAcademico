@@ -10,6 +10,18 @@ from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic.alias_generators import to_camel
+
+
+# ---------------------------------------------------------------------------
+# CONFIGURAÇÃO BASE
+# ---------------------------------------------------------------------------
+class ApiModel(BaseModel):
+    model_config = ConfigDict(
+        alias_generator=to_camel,
+        populate_by_name=True,
+        from_attributes=True
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -82,360 +94,345 @@ class SituacaoBoletoEnum(str, Enum):
 # ESCOLA
 # ---------------------------------------------------------------------------
 
-class EscolaEntrada(BaseModel):
-    NomeEscola: str = Field(..., max_length=150)
-    CodigoInep: Optional[str] = Field(None, max_length=8)
-    Cnpj: Optional[str] = Field(None, max_length=14)
-    EnderecoEscola: Optional[str] = Field(None, max_length=200)
-    TelefoneEscola: Optional[str] = Field(None, max_length=13)
-    EmailEscola: Optional[EmailStr] = None
+class EscolaEntrada(ApiModel):
+    nome_escola: str = Field(..., max_length=150)
+    codigo_inep: Optional[str] = Field(None, max_length=8)
+    cnpj: Optional[str] = Field(None, max_length=14)
+    endereco_escola: Optional[str] = Field(None, max_length=200)
+    telefone_escola: Optional[str] = Field(None, max_length=13)
+    email_escola: Optional[EmailStr] = None
 
 
-class EscolaAtualizacao(BaseModel):
-    NomeEscola: Optional[str] = Field(None, max_length=150)
-    CodigoInep: Optional[str] = Field(None, max_length=8)
-    Cnpj: Optional[str] = Field(None, max_length=14)
-    EnderecoEscola: Optional[str] = Field(None, max_length=200)
-    TelefoneEscola: Optional[str] = Field(None, max_length=13)
-    EmailEscola: Optional[EmailStr] = None
+class EscolaAtualizacao(ApiModel):
+    nome_escola: Optional[str] = Field(None, max_length=150)
+    codigo_inep: Optional[str] = Field(None, max_length=8)
+    cnpj: Optional[str] = Field(None, max_length=14)
+    endereco_escola: Optional[str] = Field(None, max_length=200)
+    telefone_escola: Optional[str] = Field(None, max_length=13)
+    email_escola: Optional[EmailStr] = None
 
 
 class EscolaSaida(EscolaEntrada):
-    model_config = ConfigDict(from_attributes=True)
-    idEscola: int
+    id_escola: int
 
 
 # ---------------------------------------------------------------------------
 # PERIODO
 # ---------------------------------------------------------------------------
 
-class PeriodoEntrada(BaseModel):
-    Ano: int = Field(..., ge=2000, le=2100)
-    NomePeriodo: str = Field(..., max_length=30)
-    DataInicio: date
-    DataFim: date
-    Situacao: SituacaoPeriodoEnum = SituacaoPeriodoEnum.ativo
+class PeriodoEntrada(ApiModel):
+    ano: int = Field(..., ge=2000, le=2100)
+    nome_periodo: str = Field(..., max_length=30)
+    data_inicio: date
+    data_fim: date
+    situacao: SituacaoPeriodoEnum = SituacaoPeriodoEnum.ativo
 
 
-class PeriodoAtualizacao(BaseModel):
-    Ano: Optional[int] = Field(None, ge=2000, le=2100)
-    NomePeriodo: Optional[str] = Field(None, max_length=30)
-    DataInicio: Optional[date] = None
-    DataFim: Optional[date] = None
-    Situacao: Optional[SituacaoPeriodoEnum] = None
+class PeriodoAtualizacao(ApiModel):
+    ano: Optional[int] = Field(None, ge=2000, le=2100)
+    nome_periodo: Optional[str] = Field(None, max_length=30)
+    data_inicio: Optional[date] = None
+    data_fim: Optional[date] = None
+    situacao: Optional[SituacaoPeriodoEnum] = None
 
 
 class PeriodoSaida(PeriodoEntrada):
-    model_config = ConfigDict(from_attributes=True)
-    idPeriodo: int
+    id_periodo: int
 
 
 # ---------------------------------------------------------------------------
 # MATERIA
 # ---------------------------------------------------------------------------
 
-class MateriaEntrada(BaseModel):
-    NomeMateria: str = Field(..., max_length=80)
-    CargaHoraria: int = Field(..., gt=0)
+class MateriaEntrada(ApiModel):
+    nome_materia: str = Field(..., max_length=80)
+    carga_horaria: int = Field(..., gt=0)
 
 
-class MateriaAtualizacao(BaseModel):
-    NomeMateria: Optional[str] = Field(None, max_length=80)
-    CargaHoraria: Optional[int] = Field(None, gt=0)
+class MateriaAtualizacao(ApiModel):
+    nome_materia: Optional[str] = Field(None, max_length=80)
+    carga_horaria: Optional[int] = Field(None, gt=0)
 
 
 class MateriaSaida(MateriaEntrada):
-    model_config = ConfigDict(from_attributes=True)
-    idMateria: int
+    id_materia: int
 
 
 # ---------------------------------------------------------------------------
 # RESPONSAVEL
 # ---------------------------------------------------------------------------
 
-class ResponsavelEntrada(BaseModel):
-    NomeResp: str = Field(..., max_length=100)
-    CpfResp: Optional[str] = Field(None, max_length=11)
-    TelefoneResp: Optional[str] = Field(None, max_length=13)
-    EmailResp: Optional[EmailStr] = None
-    CepResp: Optional[str] = Field(None, max_length=8)
-    EnderecoResp: Optional[str] = Field(None, max_length=200)
+class ResponsavelEntrada(ApiModel):
+    nome_resp: str = Field(..., max_length=100)
+    cpf_resp: Optional[str] = Field(None, max_length=11)
+    telefone_resp: Optional[str] = Field(None, max_length=13)
+    email_resp: Optional[EmailStr] = None
+    cep_resp: Optional[str] = Field(None, max_length=8)
+    endereco_resp: Optional[str] = Field(None, max_length=200)
 
 
-class ResponsavelAtualizacao(BaseModel):
-    NomeResp: Optional[str] = Field(None, max_length=100)
-    CpfResp: Optional[str] = Field(None, max_length=11)
-    TelefoneResp: Optional[str] = Field(None, max_length=13)
-    EmailResp: Optional[EmailStr] = None
-    CepResp: Optional[str] = Field(None, max_length=8)
-    EnderecoResp: Optional[str] = Field(None, max_length=200)
+class ResponsavelAtualizacao(ApiModel):
+    nome_resp: Optional[str] = Field(None, max_length=100)
+    cpf_resp: Optional[str] = Field(None, max_length=11)
+    telefone_resp: Optional[str] = Field(None, max_length=13)
+    email_resp: Optional[EmailStr] = None
+    cep_resp: Optional[str] = Field(None, max_length=8)
+    endereco_resp: Optional[str] = Field(None, max_length=200)
 
 
 class ResponsavelSaida(ResponsavelEntrada):
-    model_config = ConfigDict(from_attributes=True)
-    idResponsavel: int
+    id_responsavel: int
 
 
 # ---------------------------------------------------------------------------
 # ALUNO
 # ---------------------------------------------------------------------------
 
-class AlunoEntrada(BaseModel):
-    NumeroMatricula: str = Field(..., max_length=20)
-    NomeAluno: str = Field(..., max_length=100)
-    DataNascimento: date
-    CpfAluno: Optional[str] = Field(None, max_length=11)
-    TelefoneAluno: Optional[str] = Field(None, max_length=13)
-    EmailAluno: Optional[EmailStr] = None
-    CepAluno: Optional[str] = Field(None, max_length=8)
-    EnderecoAluno: Optional[str] = Field(None, max_length=200)
-    Situacao: SituacaoAlunoEnum = SituacaoAlunoEnum.ativo
+class AlunoEntrada(ApiModel):
+    numero_matricula: str = Field(..., max_length=20)
+    nome_aluno: str = Field(..., max_length=100)
+    data_nascimento: date
+    cpf_aluno: Optional[str] = Field(None, max_length=11)
+    telefone_aluno: Optional[str] = Field(None, max_length=13)
+    email_aluno: Optional[EmailStr] = None
+    cep_aluno: Optional[str] = Field(None, max_length=8)
+    endereco_aluno: Optional[str] = Field(None, max_length=200)
+    situacao: SituacaoAlunoEnum = SituacaoAlunoEnum.ativo
 
 
-class AlunoAtualizacao(BaseModel):
-    NumeroMatricula: Optional[str] = Field(None, max_length=20)
-    NomeAluno: Optional[str] = Field(None, max_length=100)
-    DataNascimento: Optional[date] = None
-    CpfAluno: Optional[str] = Field(None, max_length=11)
-    TelefoneAluno: Optional[str] = Field(None, max_length=13)
-    EmailAluno: Optional[EmailStr] = None
-    CepAluno: Optional[str] = Field(None, max_length=8)
-    EnderecoAluno: Optional[str] = Field(None, max_length=200)
-    Situacao: Optional[SituacaoAlunoEnum] = None
+class AlunoAtualizacao(ApiModel):
+    numero_matricula: Optional[str] = Field(None, max_length=20)
+    nome_aluno: Optional[str] = Field(None, max_length=100)
+    data_nascimento: Optional[date] = None
+    cpf_aluno: Optional[str] = Field(None, max_length=11)
+    telefone_aluno: Optional[str] = Field(None, max_length=13)
+    email_aluno: Optional[EmailStr] = None
+    cep_aluno: Optional[str] = Field(None, max_length=8)
+    endereco_aluno: Optional[str] = Field(None, max_length=200)
+    situacao: Optional[SituacaoAlunoEnum] = None
 
 
 class AlunoSaida(AlunoEntrada):
-    model_config = ConfigDict(from_attributes=True)
-    idAluno: int
+    id_aluno: int
 
 
 # ---------------------------------------------------------------------------
 # TURMA
 # ---------------------------------------------------------------------------
 
-class TurmaEntrada(BaseModel):
-    NomeTurma: str = Field(..., max_length=30)
-    Serie: Optional[str] = Field(None, max_length=45)
-    Turno: TurnoEnum
-    Capacidade: Optional[int] = Field(None, gt=0)
-    Escola_idEscola: int
-    AnoLetivo: int = Field(..., ge=2000, le=2100)
+class TurmaEntrada(ApiModel):
+    nome_turma: str = Field(..., max_length=30)
+    serie: Optional[str] = Field(None, max_length=45)
+    turno: TurnoEnum
+    capacidade: Optional[int] = Field(None, gt=0)
+    escola_id: int
+    ano_letivo: int = Field(..., ge=2000, le=2100)
 
 
-class TurmaAtualizacao(BaseModel):
-    NomeTurma: Optional[str] = Field(None, max_length=30)
-    Serie: Optional[str] = Field(None, max_length=45)
-    Turno: Optional[TurnoEnum] = None
-    Capacidade: Optional[int] = Field(None, gt=0)
-    Escola_idEscola: Optional[int] = None
-    AnoLetivo: Optional[int] = Field(None, ge=2000, le=2100)
+class TurmaAtualizacao(ApiModel):
+    nome_turma: Optional[str] = Field(None, max_length=30)
+    serie: Optional[str] = Field(None, max_length=45)
+    turno: Optional[TurnoEnum] = None
+    capacidade: Optional[int] = Field(None, gt=0)
+    escola_id: Optional[int] = None
+    ano_letivo: Optional[int] = Field(None, ge=2000, le=2100)
 
 
 class TurmaSaida(TurmaEntrada):
-    model_config = ConfigDict(from_attributes=True)
-    idTurma: int
+    id_turma: int
 
 
 # ---------------------------------------------------------------------------
 # PROFESSOR
 # ---------------------------------------------------------------------------
 
-class ProfessorEntrada(BaseModel):
-    NomeProf: str = Field(..., max_length=100)
-    CpfProf: Optional[str] = Field(None, max_length=11)
-    TelefoneProf: Optional[str] = Field(None, max_length=13)
-    EmailProf: Optional[EmailStr] = None
-    CepProf: Optional[str] = Field(None, max_length=8)
-    EnderecoProf: Optional[str] = Field(None, max_length=200)
-    Situacao: SituacaoProfessorEnum = SituacaoProfessorEnum.ativo
-    Escola_idEscola: int
+class ProfessorEntrada(ApiModel):
+    nome_prof: str = Field(..., max_length=100)
+    cpf_prof: Optional[str] = Field(None, max_length=11)
+    telefone_prof: Optional[str] = Field(None, max_length=13)
+    email_prof: Optional[EmailStr] = None
+    cep_prof: Optional[str] = Field(None, max_length=8)
+    endereco_prof: Optional[str] = Field(None, max_length=200)
+    situacao: SituacaoProfessorEnum = SituacaoProfessorEnum.ativo
+    escola_id: int
 
 
-class ProfessorAtualizacao(BaseModel):
-    NomeProf: Optional[str] = Field(None, max_length=100)
-    CpfProf: Optional[str] = Field(None, max_length=11)
-    TelefoneProf: Optional[str] = Field(None, max_length=13)
-    EmailProf: Optional[EmailStr] = None
-    CepProf: Optional[str] = Field(None, max_length=8)
-    EnderecoProf: Optional[str] = Field(None, max_length=200)
-    Situacao: Optional[SituacaoProfessorEnum] = None
-    Escola_idEscola: Optional[int] = None
+class ProfessorAtualizacao(ApiModel):
+    nome_prof: Optional[str] = Field(None, max_length=100)
+    cpf_prof: Optional[str] = Field(None, max_length=11)
+    telefone_prof: Optional[str] = Field(None, max_length=13)
+    email_prof: Optional[EmailStr] = None
+    cep_prof: Optional[str] = Field(None, max_length=8)
+    endereco_prof: Optional[str] = Field(None, max_length=200)
+    situacao: Optional[SituacaoProfessorEnum] = None
+    escola_id: Optional[int] = None
 
 
 class ProfessorSaida(ProfessorEntrada):
-    model_config = ConfigDict(from_attributes=True)
-    idProfessor: int
+    id_professor: int
 
 
 # ---------------------------------------------------------------------------
 # MATRICULA
 # ---------------------------------------------------------------------------
 
-class MatriculaEntrada(BaseModel):
-    Aluno_idAluno: int
-    Turma_idTurma: int
-    DataMatricula: date
-    Situacao: SituacaoMatriculaEnum = SituacaoMatriculaEnum.ativa
+class MatriculaEntrada(ApiModel):
+    aluno_id: int
+    turma_id: int
+    data_matricula: date
+    situacao: SituacaoMatriculaEnum = SituacaoMatriculaEnum.ativa
 
 
-class MatriculaAtualizacao(BaseModel):
-    Aluno_idAluno: Optional[int] = None
-    Turma_idTurma: Optional[int] = None
-    DataMatricula: Optional[date] = None
-    Situacao: Optional[SituacaoMatriculaEnum] = None
+class MatriculaAtualizacao(ApiModel):
+    aluno_id: Optional[int] = None
+    turma_id: Optional[int] = None
+    data_matricula: Optional[date] = None
+    situacao: Optional[SituacaoMatriculaEnum] = None
 
 
 class MatriculaSaida(MatriculaEntrada):
-    model_config = ConfigDict(from_attributes=True)
-    idMatricula: int
+    id_matricula: int
 
 
 # ---------------------------------------------------------------------------
 # ALUNORESPONSAVEL (vínculo aluno <-> responsável)
 # ---------------------------------------------------------------------------
 
-class VinculoResponsavelEntrada(BaseModel):
-    TipoResponsavel: TipoResponsavelEnum
-    ResponsavelFinanceiro: bool = False
+class VinculoResponsavelEntrada(ApiModel):
+    tipo_responsavel: TipoResponsavelEnum
+    responsavel_financeiro: bool = False
 
 
-class VinculoResponsavelSaida(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    Aluno_idAluno: int
-    Responsavel_idResponsavel: int
-    TipoResponsavel: TipoResponsavelEnum
-    ResponsavelFinanceiro: bool
+class VinculoResponsavelSaida(ApiModel):
+    aluno_id: int
+    responsavel_id: int
+    tipo_responsavel: TipoResponsavelEnum
+    responsavel_financeiro: bool
 
 
 # ---------------------------------------------------------------------------
 # GRADE CURRICULAR
 # ---------------------------------------------------------------------------
 
-class GradeCurricularEntrada(BaseModel):
-    Turma_idTurma: int
-    Materia_idMateria: int
-    Professor_idProfessor: int
+class GradeCurricularEntrada(ApiModel):
+    turma_id: int
+    materia_id: int
+    professor_id: int
 
 
 class GradeCurricularSaida(GradeCurricularEntrada):
-    model_config = ConfigDict(from_attributes=True)
-    idGrade: int
+    id_grade: int
 
 
 # ---------------------------------------------------------------------------
 # AVALIACAO
 # ---------------------------------------------------------------------------
 
-class AvaliacaoEntrada(BaseModel):
-    Grade_idGrade: int
-    Periodo_idPeriodo: int
-    Tipo: TipoAvaliacaoEnum
-    NomeAvaliacao: str = Field(..., max_length=100)
-    DataAvaliacao: date
-    Peso: Decimal = Field(default=Decimal("1.00"), gt=0, le=99.99)
+class AvaliacaoEntrada(ApiModel):
+    grade_id: int
+    periodo_id: int
+    tipo: TipoAvaliacaoEnum
+    nome_avaliacao: str = Field(..., max_length=100)
+    data_avaliacao: date
+    peso: Decimal = Field(default=Decimal("1.00"), gt=0, le=99.99)
 
 
-class AvaliacaoAtualizacao(BaseModel):
-    Grade_idGrade: Optional[int] = None
-    Periodo_idPeriodo: Optional[int] = None
-    Tipo: Optional[TipoAvaliacaoEnum] = None
-    NomeAvaliacao: Optional[str] = Field(None, max_length=100)
-    DataAvaliacao: Optional[date] = None
-    Peso: Optional[Decimal] = Field(None, gt=0, le=99.99)
+class AvaliacaoAtualizacao(ApiModel):
+    grade_id: Optional[int] = None
+    periodo_id: Optional[int] = None
+    tipo: Optional[TipoAvaliacaoEnum] = None
+    nome_avaliacao: Optional[str] = Field(None, max_length=100)
+    data_avaliacao: Optional[date] = None
+    peso: Optional[Decimal] = Field(None, gt=0, le=99.99)
 
 
 class AvaliacaoSaida(AvaliacaoEntrada):
-    model_config = ConfigDict(from_attributes=True)
-    idAvaliacao: int
+    id_avaliacao: int
 
 
 # ---------------------------------------------------------------------------
 # NOTA
 # ---------------------------------------------------------------------------
 
-class NotaEntrada(BaseModel):
-    Avaliacao_idAvaliacao: int
-    Aluno_idAluno: int
-    ValorNota: Decimal = Field(..., ge=0, le=10)
+class NotaEntrada(ApiModel):
+    avaliacao_id: int
+    aluno_id: int
+    valor_nota: Decimal = Field(..., ge=0, le=10)
 
 
-class NotaAtualizacao(BaseModel):
-    ValorNota: Optional[Decimal] = Field(None, ge=0, le=10)
+class NotaAtualizacao(ApiModel):
+    valor_nota: Optional[Decimal] = Field(None, ge=0, le=10)
 
 
 class NotaSaida(NotaEntrada):
-    model_config = ConfigDict(from_attributes=True)
-    idNota: int
+    id_nota: int
 
 
 # ---------------------------------------------------------------------------
 # FREQUENCIA
 # ---------------------------------------------------------------------------
 
-class FrequenciaEntrada(BaseModel):
-    Grade_idGrade: int
-    Aluno_idAluno: int
-    DataFrequencia: date
-    Situacao: SituacaoFrequenciaEnum
+class FrequenciaEntrada(ApiModel):
+    grade_id: int
+    aluno_id: int
+    data_frequencia: date
+    situacao: SituacaoFrequenciaEnum
 
 
-class FrequenciaAtualizacao(BaseModel):
-    Situacao: Optional[SituacaoFrequenciaEnum] = None
-    DataFrequencia: Optional[date] = None
+class FrequenciaAtualizacao(ApiModel):
+    situacao: Optional[SituacaoFrequenciaEnum] = None
+    data_frequencia: Optional[date] = None
 
 
 class FrequenciaSaida(FrequenciaEntrada):
-    model_config = ConfigDict(from_attributes=True)
-    idFrequencia: int
+    id_frequencia: int
 
 
 # ---------------------------------------------------------------------------
 # BOLETIM
 # ---------------------------------------------------------------------------
 
-class BoletimEntrada(BaseModel):
-    Aluno_idAluno: int
-    Periodo_idPeriodo: int
-    Materia_idMateria: int
-    MediaFinal: Decimal = Field(..., ge=0, le=10)
-    Situacao: SituacaoBoletimEnum = SituacaoBoletimEnum.aberto
+class BoletimEntrada(ApiModel):
+    aluno_id: int
+    periodo_id: int
+    materia_id: int
+    media_final: Decimal = Field(..., ge=0, le=10)
+    situacao: SituacaoBoletimEnum = SituacaoBoletimEnum.aberto
 
 
-class BoletimAtualizacao(BaseModel):
-    MediaFinal: Optional[Decimal] = Field(None, ge=0, le=10)
-    Situacao: Optional[SituacaoBoletimEnum] = None
+class BoletimAtualizacao(ApiModel):
+    media_final: Optional[Decimal] = Field(None, ge=0, le=10)
+    situacao: Optional[SituacaoBoletimEnum] = None
 
 
 class BoletimSaida(BoletimEntrada):
-    model_config = ConfigDict(from_attributes=True)
-    idBoletim: int
+    id_boletim: int
 
 
 # ---------------------------------------------------------------------------
 # BOLETO
 # ---------------------------------------------------------------------------
 
-class BoletoEntrada(BaseModel):
-    NumeroBoleto: str = Field(..., max_length=50)
-    Aluno_idAluno: int
-    Competencia: str = Field(..., min_length=7, max_length=7, description="Formato AAAA-MM")
-    ValorMensalidade: Decimal = Field(..., gt=0)
-    DataVencimento: date
-    Situacao: SituacaoBoletoEnum = SituacaoBoletoEnum.pendente
+class BoletoEntrada(ApiModel):
+    numero_boleto: str = Field(..., max_length=50)
+    aluno_id: int
+    competencia: str = Field(..., min_length=7, max_length=7, description="Formato AAAA-MM")
+    valor_mensalidade: Decimal = Field(..., gt=0)
+    data_vencimento: date
+    situacao: SituacaoBoletoEnum = SituacaoBoletoEnum.pendente
 
 
-class BoletoAtualizacao(BaseModel):
-    DataPagamento: Optional[date] = None
-    Situacao: Optional[SituacaoBoletoEnum] = None
+class BoletoAtualizacao(ApiModel):
+    data_pagamento: Optional[date] = None
+    situacao: Optional[SituacaoBoletoEnum] = None
 
 
-class BoletoSaida(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-    idBoleto: int
-    NumeroBoleto: str
-    Aluno_idAluno: int
-    Competencia: str
-    ValorMensalidade: Decimal
-    DataVencimento: date
-    DataPagamento: Optional[date] = None
-    Situacao: SituacaoBoletoEnum
+class BoletoSaida(ApiModel):
+    id_boleto: int
+    numero_boleto: str
+    aluno_id: int
+    competencia: str
+    valor_mensalidade: Decimal
+    data_vencimento: date
+    data_pagamento: Optional[date] = None
+    situacao: SituacaoBoletoEnum
