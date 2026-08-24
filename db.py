@@ -599,7 +599,7 @@ def listar_turmas(escola_id: int | None = None):
                 ano_letivo, criado_em, atualizado_em
                 FROM turma WHERE 1=1"""
     params = []
-    if escola_id:
+    if escola_id is not None:
         query += " AND escola_id_escola = %s"
         params.append(escola_id)
     query += " ORDER BY id_turma"
@@ -665,7 +665,7 @@ def listar_professores(escola_id: int | None = None):
                 criado_em, atualizado_em
                 FROM professor WHERE 1=1"""
     params = []
-    if escola_id:
+    if escola_id is not None:
         query += " AND escola_id_escola = %s"
         params.append(escola_id)
     query += " ORDER BY id_professor"
@@ -730,10 +730,10 @@ def listar_matriculas(aluno_id: int | None = None, turma_id: int | None = None):
                 atualizado_em
                 FROM matricula WHERE 1=1"""
     params = []
-    if aluno_id:
+    if aluno_id is not None:
         query += " AND aluno_id_aluno = %s"
         params.append(aluno_id)
-    if turma_id:
+    if turma_id is not None:
         query += " AND turma_id_turma = %s"
         params.append(turma_id)
     query += " ORDER BY id_matricula"
@@ -850,7 +850,7 @@ def listar_grades(turma_id: int | None = None):
                 professor_id_professor AS professor_id
                 FROM grade_curricular WHERE 1=1"""
     params = []
-    if turma_id:
+    if turma_id is not None:
         query += " AND turma_id_turma = %s"
         params.append(turma_id)
     query += " ORDER BY id_grade"
@@ -898,10 +898,10 @@ def listar_avaliacoes(grade_id: int | None = None, periodo_id: int | None = None
                 peso
                 FROM avaliacao WHERE 1=1"""
     params = []
-    if grade_id:
+    if grade_id is not None:
         query += " AND grade_id_grade = %s"
         params.append(grade_id)
-    if periodo_id:
+    if periodo_id is not None:
         query += " AND periodo_id_periodo = %s"
         params.append(periodo_id)
     query += " ORDER BY id_avaliacao"
@@ -960,10 +960,10 @@ def listar_notas(avaliacao_id: int | None = None, aluno_id: int | None = None):
                 valor_nota
                 FROM nota WHERE 1=1"""
     params = []
-    if avaliacao_id:
+    if avaliacao_id is not None:
         query += " AND avaliacao_id_avaliacao = %s"
         params.append(avaliacao_id)
-    if aluno_id:
+    if aluno_id is not None:
         query += " AND aluno_id_aluno = %s"
         params.append(aluno_id)
     query += " ORDER BY id_nota"
@@ -1019,10 +1019,10 @@ def listar_frequencias(grade_id: int | None = None, aluno_id: int | None = None)
                 data_frequencia, situacao
                 FROM frequencia WHERE 1=1"""
     params = []
-    if grade_id:
+    if grade_id is not None:
         query += " AND grade_id_grade = %s"
         params.append(grade_id)
-    if aluno_id:
+    if aluno_id is not None:
         query += " AND aluno_id_aluno = %s"
         params.append(aluno_id)
     query += " ORDER BY id_frequencia"
@@ -1081,10 +1081,10 @@ def listar_boletins(aluno_id: int | None = None, periodo_id: int | None = None):
                 materia_id_materia AS materia_id, media_final, situacao
                 FROM boletim WHERE 1=1"""
     params = []
-    if aluno_id:
+    if aluno_id is not None:
         query += " AND aluno_id_aluno = %s"
         params.append(aluno_id)
-    if periodo_id:
+    if periodo_id is not None:
         query += " AND periodo_id_periodo = %s"
         params.append(periodo_id)
     query += " ORDER BY id_boletim"
@@ -1142,7 +1142,7 @@ def listar_boletos(aluno_id: int | None = None, situacao: str | None = None):
                 data_pagamento, situacao
                 FROM boleto WHERE 1=1"""
     params = []
-    if aluno_id:
+    if aluno_id is not None:
         query += " AND aluno_id_aluno = %s"
         params.append(aluno_id)
     if situacao:

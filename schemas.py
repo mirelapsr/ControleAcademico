@@ -146,7 +146,7 @@ class PeriodoSaida(PeriodoEntrada):
 
 class MateriaEntrada(ApiModel):
     nome_materia: str = Field(..., max_length=80)
-    carga_horaria: Optional[int] = Field(None, gt=0)
+    carga_horaria: int = Field(..., gt=0)
 
 
 class MateriaAtualizacao(ApiModel):
