@@ -61,10 +61,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---------------------------------------------------------------------------
 # Sub-router protegido: toda rota registrada em `api` exige Bearer Token
 # válido (usuário autenticado e ativo), resolvido por auth.get_usuario_atual.
-# ---------------------------------------------------------------------------
 api = APIRouter(dependencies=[Depends(auth.get_usuario_atual)])
 
 
@@ -90,11 +88,14 @@ def raiz():
 def saude():
     return {"status": "up"}
 
-# ===========================================================================
+
 # AUTENTICACAO
-# ===========================================================================
+
 
 @app.post("/auth/login", response_model=TokenSaida, tags=["Auth"])
+@app.post("/auth/login/", response_model=TokenSaida, include_in_schema=False)
+@app.post("/login", response_model=TokenSaida, include_in_schema=False)
+@app.post("/login/", response_model=TokenSaida, include_in_schema=False)
 def login(form: OAuth2PasswordRequestForm = Depends()):
     email = form.username.strip().lower()
     usuario = db.buscar_usuario_por_email(email)
@@ -112,14 +113,13 @@ def login(form: OAuth2PasswordRequestForm = Depends()):
     token, expira_em = auth.criar_token(usuario["id_usuario"], usuario["papel"])
     return TokenSaida(access_token=token, token_type="bearer", expires_in=expira_em)
 
-
 @api.get("/auth/me", response_model=UsuarioSaida, tags=["Auth"])
+@api.get("/me", response_model=UsuarioSaida, include_in_schema=False)
 def quem_sou_eu(usuario_atual: dict = Depends(auth.get_usuario_atual)):
     return usuario_atual
 
-# ---------------------------------------------------------------------------
+
 # Helpers de camada de rota
-# ---------------------------------------------------------------------------
 
 def campos_para_update(payload) -> dict:
     """Converte um schema *Atualizacao em dict só com campos enviados
@@ -158,19 +158,15 @@ def tratar_integrity_error(exc: Exception):
     raise exc
 
 def formatar_erro_banco(exc: Exception) -> str:
-    # Se for uma exceção disparada por trigger do banco (RAISE EXCEPTION)
     mensagem = str(exc).strip()
     if hasattr(exc, "pgerror") and exc.pgerror:
-        # Pega a linha principal do erro do PostgreSQL
         linhas = [linha.strip() for linha in exc.pgerror.splitlines() if linha.strip()]
         if linhas:
             return linhas[0].replace("ERROR:", "").strip()
     return mensagem
 
 
-# ===========================================================================
 # ESCOLA
-# ===========================================================================
 
 @api.post("/escolas", response_model=EscolaSaida, status_code=status.HTTP_201_CREATED, tags=["Escola"])
 def criar_escola(payload: EscolaEntrada):
@@ -218,9 +214,7 @@ def deletar_escola(id_escola: int):
         tratar_integrity_error(exc)
 
 
-# ===========================================================================
 # PERIODO
-# ===========================================================================
 
 @api.post("/periodos", response_model=PeriodoSaida, status_code=status.HTTP_201_CREATED, tags=["Periodo"])
 def criar_periodo(payload: PeriodoEntrada):
@@ -264,9 +258,7 @@ def deletar_periodo(id_periodo: int):
         tratar_integrity_error(exc)
 
 
-# ===========================================================================
 # MATERIA
-# ===========================================================================
 
 @api.post("/materias", response_model=MateriaSaida, status_code=status.HTTP_201_CREATED, tags=["Materia"])
 def criar_materia(payload: MateriaEntrada):
@@ -310,9 +302,7 @@ def deletar_materia(id_materia: int):
         tratar_integrity_error(exc)
 
 
-# ===========================================================================
 # RESPONSAVEL
-# ===========================================================================
 
 @api.post("/responsaveis", response_model=ResponsavelSaida, status_code=status.HTTP_201_CREATED, tags=["Responsavel"])
 def criar_responsavel(payload: ResponsavelEntrada):
@@ -359,9 +349,7 @@ def deletar_responsavel(id_responsavel: int):
         tratar_integrity_error(exc)
 
 
-# ===========================================================================
 # ALUNO
-# ===========================================================================
 
 @api.post("/alunos", response_model=AlunoSaida, status_code=status.HTTP_201_CREATED, tags=["Aluno"])
 def criar_aluno(payload: AlunoEntrada):
@@ -435,9 +423,7 @@ def medias_dinamicas_do_aluno(id_aluno: int):
     return db.medias_dinamicas_do_aluno(id_aluno)
 
 
-# ===========================================================================
 # TURMA
-# ===========================================================================
 
 @api.post("/turmas", response_model=TurmaSaida, status_code=status.HTTP_201_CREATED, tags=["Turma"])
 def criar_turma(payload: TurmaEntrada):
@@ -483,9 +469,7 @@ def deletar_turma(id_turma: int):
         tratar_integrity_error(exc)
 
 
-# ===========================================================================
 # PROFESSOR
-# ===========================================================================
 
 @api.post("/professores", response_model=ProfessorSaida, status_code=status.HTTP_201_CREATED, tags=["Professor"])
 def criar_professor(payload: ProfessorEntrada):
@@ -531,9 +515,7 @@ def deletar_professor(id_professor: int):
         tratar_integrity_error(exc)
 
 
-# ===========================================================================
 # MATRICULA
-# ===========================================================================
 
 @api.post("/matriculas", response_model=MatriculaSaida, status_code=status.HTTP_201_CREATED, tags=["Matricula"])
 def criar_matricula(payload: MatriculaEntrada):
@@ -576,9 +558,7 @@ def deletar_matricula(id_matricula: int):
         tratar_integrity_error(exc)
 
 
-# ===========================================================================
 # VÍNCULO ALUNO <-> RESPONSAVEL
-# ===========================================================================
 
 @api.post(
     "/alunos/{id_aluno}/responsaveis/{id_responsavel}",
@@ -622,9 +602,7 @@ def desvincular_responsavel(id_aluno: int, id_responsavel: int):
         tratar_integrity_error(exc)
 
 
-# ===========================================================================
 # GRADE CURRICULAR
-# ===========================================================================
 
 @api.post("/grades", response_model=GradeCurricularSaida, status_code=status.HTTP_201_CREATED, tags=["Grade Curricular"])
 def criar_grade(payload: GradeCurricularEntrada):
@@ -666,9 +644,7 @@ def deletar_grade(id_grade: int):
         tratar_integrity_error(exc)
 
 
-# ===========================================================================
 # AVALIACAO
-# ===========================================================================
 
 @api.post("/avaliacoes", response_model=AvaliacaoSaida, status_code=status.HTTP_201_CREATED, tags=["Avaliacao"])
 def criar_avaliacao(payload: AvaliacaoEntrada):
@@ -714,9 +690,7 @@ def deletar_avaliacao(id_avaliacao: int):
         tratar_integrity_error(exc)
 
 
-# ===========================================================================
 # NOTA
-# ===========================================================================
 
 @api.post("/notas", response_model=NotaSaida, status_code=status.HTTP_201_CREATED, tags=["Nota"])
 def criar_nota(payload: NotaEntrada):
@@ -759,9 +733,7 @@ def deletar_nota(id_nota: int):
         tratar_integrity_error(exc)
 
 
-# ===========================================================================
 # FREQUENCIA
-# ===========================================================================
 
 @api.post("/frequencias", response_model=FrequenciaSaida, status_code=status.HTTP_201_CREATED, tags=["Frequencia"])
 def criar_frequencia(payload: FrequenciaEntrada):
@@ -807,9 +779,7 @@ def deletar_frequencia(id_frequencia: int):
         tratar_integrity_error(exc)
 
 
-# ===========================================================================
 # BOLETIM
-# ===========================================================================
 
 @api.post("/boletins", response_model=BoletimSaida, status_code=status.HTTP_201_CREATED, tags=["Boletim"])
 def criar_boletim(payload: BoletimEntrada):
@@ -855,9 +825,7 @@ def deletar_boletim(id_boletim: int):
         tratar_integrity_error(exc)
 
 
-# ===========================================================================
 # BOLETO
-# ===========================================================================
 
 @api.post("/boletos", response_model=BoletoSaida, status_code=status.HTTP_201_CREATED, tags=["Boleto"])
 def criar_boleto(payload: BoletoEntrada):
@@ -902,8 +870,7 @@ def deletar_boleto(id_boleto: int):
     except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
-# ===========================================================================
 # REGISTRO DO ROUTER PROTEGIDO
-# ===========================================================================
+
 
 app.include_router(api)
