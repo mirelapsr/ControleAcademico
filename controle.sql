@@ -1,15 +1,15 @@
--- =========================================================
--- BANCO DE DADOS
--- Observação: Execute este CREATE DATABASE separadamente se o banco não existir.
--- Após criar, mude a conexão do DataGrip para apontar para o CAcademic.
--- CREATE DATABASE "CAcademic";
--- =========================================================
--- No PostgreSQL, o DROP CASCADE ignora restrições de chaves estrangeiras na hora de dropar
+
 CREATE DATABASE "CAcademic";
+
+-- Extensão para acelerar buscas ILIKE '%...%' (ex.: listar_alunos por nome)
+-- via índice GIN de trigramas, em vez de full scan a cada chamada.
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
 DROP VIEW IF EXISTS vw_aluno_media_dinamica CASCADE;
 DROP VIEW IF EXISTS vw_aluno_escola_atual CASCADE;
 DROP VIEW IF EXISTS vw_aluno_responsavel_financeiro CASCADE;
 
+DROP TABLE IF EXISTS usuario CASCADE;
 DROP TABLE IF EXISTS boleto CASCADE;
 DROP TABLE IF EXISTS boletim CASCADE;
 DROP TABLE IF EXISTS frequencia CASCADE;
@@ -27,7 +27,7 @@ DROP TABLE IF EXISTS periodo CASCADE;
 DROP TABLE IF EXISTS escola CASCADE;
 
 -- ---------------------------------------------------------
--- FUNÇÃO GENÉRICA DE TIMESTAMP
+-- FUNÇÃO DE TIMESTAMPTZ
 -- ---------------------------------------------------------
 CREATE OR REPLACE FUNCTION atualiza_timestamp()
 RETURNS TRIGGER AS $$
@@ -38,6 +38,26 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ---------------------------------------------------------
+-- usuario
+-- ---------------------------------------------------------
+CREATE TABLE usuario (
+    id_usuario     SERIAL PRIMARY KEY,
+    nome           VARCHAR(100) NOT NULL,
+    email          VARCHAR(100) NOT NULL UNIQUE,
+    senha_hash     VARCHAR(100) NOT NULL,
+    papel          VARCHAR(20)  NOT NULL DEFAULT 'ADMIN',
+    ativo          BOOLEAN      NOT NULL DEFAULT TRUE,
+    criado_em      TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em  TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_usuario_papel CHECK (papel IN ('ADMIN', 'PROFESSOR', 'SECRETARIA'))
+);
+
+CREATE INDEX idx_usuario_email ON usuario (email);
+
+CREATE TRIGGER trg_usuario_upd BEFORE UPDATE ON usuario
+FOR EACH ROW EXECUTE FUNCTION atualiza_timestamp();
+
+-- ---------------------------------------------------------
 -- escola
 -- ---------------------------------------------------------
 CREATE TABLE escola (
@@ -45,11 +65,12 @@ CREATE TABLE escola (
     nome_escola      VARCHAR(150) NOT NULL,
     codigo_inep      VARCHAR(8)  UNIQUE,
     cnpj             VARCHAR(14) UNIQUE,
+    rede_ensino      VARCHAR(50),
     endereco_escola  VARCHAR(200),
     telefone_escola  VARCHAR(13),
     email_escola     VARCHAR(100),
-    criado_em        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    atualizado_em    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    criado_em        TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TRIGGER trg_escola_upd BEFORE UPDATE ON escola
@@ -65,8 +86,8 @@ CREATE TABLE periodo (
     data_inicio      DATE NOT NULL,
     data_fim         DATE NOT NULL,
     situacao         VARCHAR(50) NOT NULL DEFAULT 'Ativo',
-    criado_em        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    atualizado_em    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    criado_em        TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_periodo_situacao CHECK (situacao IN ('Ativo','Encerrado')),
     CONSTRAINT chk_periodo_datas CHECK (data_fim > data_inicio)
 );
@@ -85,8 +106,8 @@ CREATE TABLE turma (
     capacidade           INTEGER,
     escola_id_escola     INTEGER NOT NULL,
     ano_letivo           SMALLINT NOT NULL,
-    criado_em            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    atualizado_em        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    criado_em            TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em        TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_turma_turno CHECK (turno IN ('Manha','Tarde','Noite','Integral')),
     CONSTRAINT chk_turma_capacidade CHECK (capacidade IS NULL OR capacidade > 0),
     CONSTRAINT fk_turma_escola FOREIGN KEY (escola_id_escola) REFERENCES escola(id_escola) ON DELETE RESTRICT ON UPDATE CASCADE
@@ -111,14 +132,17 @@ CREATE TABLE aluno (
     cep_aluno          VARCHAR(8),
     endereco_aluno     VARCHAR(200),
     situacao           VARCHAR(50) NOT NULL DEFAULT 'Ativo',
-    criado_em          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    atualizado_em      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    criado_em          TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_aluno_situacao CHECK (situacao IN ('Ativo','Inativo','Transferido')),
     CONSTRAINT chk_cpf_aluno CHECK (cpf_aluno IS NULL OR cpf_aluno ~ '^[0-9]{11}$')
 );
 
 CREATE TRIGGER trg_aluno_upd BEFORE UPDATE ON aluno
 FOR EACH ROW EXECUTE FUNCTION atualiza_timestamp();
+
+-- Acelera listar_alunos(nome=...) que usa "nome_aluno ILIKE '%...%'"
+CREATE INDEX idx_aluno_nome_trgm ON aluno USING GIN (nome_aluno gin_trgm_ops);
 
 -- ---------------------------------------------------------
 -- responsavel
@@ -131,8 +155,8 @@ CREATE TABLE responsavel (
     email_resp       VARCHAR(100),
     cep_resp         VARCHAR(8),
     endereco_resp    VARCHAR(200),
-    criado_em        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    atualizado_em    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    criado_em        TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_cpf_resp CHECK (cpf_resp IS NULL OR cpf_resp ~ '^[0-9]{11}$')
 );
 
@@ -202,14 +226,15 @@ CREATE TABLE matricula (
     turma_id_turma   INTEGER NOT NULL,
     data_matricula   DATE NOT NULL,
     situacao         VARCHAR(50) NOT NULL DEFAULT 'Ativa',
-    criado_em        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    atualizado_em    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    criado_em        TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_matricula_situacao CHECK (situacao IN ('Ativa','Cancelada','Transferida','Concluida')),
     CONSTRAINT fk_matricula_aluno FOREIGN KEY (aluno_id_aluno) REFERENCES aluno(id_aluno) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT fk_matricula_turma FOREIGN KEY (turma_id_turma) REFERENCES turma(id_turma) ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
 CREATE INDEX idx_matricula_aluno_situacao ON matricula (aluno_id_aluno, situacao);
+CREATE INDEX idx_matricula_turma ON matricula (turma_id_turma);
 
 CREATE TRIGGER trg_matricula_upd BEFORE UPDATE ON matricula
 FOR EACH ROW EXECUTE FUNCTION atualiza_timestamp();
@@ -267,8 +292,8 @@ CREATE TABLE professor (
     endereco_prof    VARCHAR(200),
     situacao         VARCHAR(50) NOT NULL DEFAULT 'Ativo',
     escola_id_escola INTEGER NOT NULL,
-    criado_em        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    atualizado_em    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    criado_em        TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em    TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_prof_situacao CHECK (situacao IN ('Ativo','Inativo')),
     CONSTRAINT chk_cpf_prof CHECK (cpf_prof IS NULL OR cpf_prof ~ '^[0-9]{11}$'),
     CONSTRAINT fk_professor_escola FOREIGN KEY (escola_id_escola) REFERENCES escola(id_escola) ON DELETE RESTRICT ON UPDATE CASCADE
@@ -301,6 +326,9 @@ CREATE TABLE grade_curricular (
     CONSTRAINT fk_grade_professor FOREIGN KEY (professor_id_professor) REFERENCES professor(id_professor) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT uq_turma_materia UNIQUE (turma_id_turma, materia_id_materia)
 );
+
+CREATE INDEX idx_grade_materia ON grade_curricular (materia_id_materia);
+CREATE INDEX idx_grade_professor ON grade_curricular (professor_id_professor);
 
 -- ---------------------------------------------------------
 -- avaliacao
@@ -346,6 +374,7 @@ CREATE TABLE frequencia (
     aluno_id_aluno   INTEGER NOT NULL,
     data_frequencia  DATE NOT NULL,
     situacao         VARCHAR(50) NOT NULL,
+    justificativa    VARCHAR(255),
     CONSTRAINT chk_freq_situacao CHECK (situacao IN ('Presente','Falta','FaltaJustificada')),
     CONSTRAINT fk_frequencia_grade FOREIGN KEY (grade_id_grade) REFERENCES grade_curricular(id_grade) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT fk_frequencia_aluno FOREIGN KEY (aluno_id_aluno) REFERENCES aluno(id_aluno) ON DELETE RESTRICT ON UPDATE CASCADE,
@@ -353,6 +382,7 @@ CREATE TABLE frequencia (
 );
 
 CREATE INDEX idx_frequencia_aluno_data ON frequencia (aluno_id_aluno, data_frequencia);
+CREATE INDEX idx_frequencia_grade ON frequencia (grade_id_grade);
 
 -- ---------------------------------------------------------
 -- boletim
@@ -370,6 +400,9 @@ CREATE TABLE boletim (
     CONSTRAINT fk_boletim_materia FOREIGN KEY (materia_id_materia) REFERENCES materia(id_materia) ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT uq_boletim_aluno_periodo_materia UNIQUE (aluno_id_aluno, periodo_id_periodo, materia_id_materia)
 );
+
+CREATE INDEX idx_boletim_periodo ON boletim (periodo_id_periodo);
+CREATE INDEX idx_boletim_materia ON boletim (materia_id_materia);
 
 -- ---------------------------------------------------------
 -- boleto
@@ -433,3 +466,25 @@ GROUP BY
     n.aluno_id_aluno,
     a.periodo_id_periodo,
     g.materia_id_materia;
+
+-- =========================================================
+-- Hardening: role de API com privilégios mínimos (DML, sem DDL)
+-- =========================================================
+-- Em produção, a aplicação deve conectar com este usuário (não com o
+-- superusuário usado para rodar este script de criação do schema).
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'app_api_user') THEN
+        CREATE ROLE app_api_user LOGIN PASSWORD 'trocar_senha_producao_segura';
+    END IF;
+END $$;
+
+GRANT CONNECT ON DATABASE "CAcademic" TO app_api_user;
+GRANT USAGE ON SCHEMA public TO app_api_user;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_api_user;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO app_api_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO app_api_user;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO app_api_user;
+
+select * from professor
+

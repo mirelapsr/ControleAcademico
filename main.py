@@ -14,12 +14,16 @@ Tratamento de erros:
                         nenhum campo enviado para atualização.
 """
 
+import os
 from typing import List, Optional
 
 import psycopg2
-import psycopg2.errors
-from fastapi import FastAPI, HTTPException, Query, status
+from psycopg2.errors import IntegrityError, RaiseException
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordRequestForm
 
+import auth
 import db
 from schemas import (
     EscolaEntrada, EscolaAtualizacao, EscolaSaida,
@@ -31,12 +35,13 @@ from schemas import (
     ProfessorEntrada, ProfessorAtualizacao, ProfessorSaida,
     MatriculaEntrada, MatriculaAtualizacao, MatriculaSaida,
     VinculoResponsavelEntrada, VinculoResponsavelSaida,
-    GradeCurricularEntrada, GradeCurricularSaida,
+    GradeCurricularEntrada, GradeCurricularAtualizacao, GradeCurricularSaida,
     AvaliacaoEntrada, AvaliacaoAtualizacao, AvaliacaoSaida,
     NotaEntrada, NotaAtualizacao, NotaSaida,
     FrequenciaEntrada, FrequenciaAtualizacao, FrequenciaSaida,
     BoletimEntrada, BoletimAtualizacao, BoletimSaida,
     BoletoEntrada, BoletoAtualizacao, BoletoSaida,
+    TokenSaida, UsuarioSaida,
 )
 
 app = FastAPI(
@@ -45,16 +50,72 @@ app = FastAPI(
     version="2.0.0",
 )
 
+origens_raw = os.getenv("ORIGENS_PERMITIDAS", "http://localhost:5173,http://127.0.0.1:5173")
+origens = [origem.strip().rstrip("/") for origem in origens_raw.split(",") if origem.strip()]
 
-#@app.on_event("startup")
-#def ao_iniciar():
-#    db.criar_tabelas()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origens,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ---------------------------------------------------------------------------
+# Sub-router protegido: toda rota registrada em `api` exige Bearer Token
+# válido (usuário autenticado e ativo), resolvido por auth.get_usuario_atual.
+# ---------------------------------------------------------------------------
+api = APIRouter(dependencies=[Depends(auth.get_usuario_atual)])
+
+
+@app.on_event("startup")
+def ao_iniciar():
+    db.criar_tabelas()
+
+    admin_email = os.getenv("ADMIN_EMAIL", "admin@escola.com").strip().lower()
+    if not db.buscar_usuario_por_email(admin_email):
+        db.inserir_usuario(
+            nome="Administrador",
+            email=admin_email,
+            senha_hash=auth.hash_senha(os.getenv("ADMIN_PASSWORD", "admin123")),
+            papel="ADMIN",
+        )
 
 
 @app.get("/", tags=["Health"])
 def raiz():
     return {"status": "ok", "service": "CAcademic API", "docs": "/docs"}
 
+@app.get("/saude", tags=["Health"])
+def saude():
+    return {"status": "up"}
+
+# ===========================================================================
+# AUTENTICACAO
+# ===========================================================================
+
+@app.post("/auth/login", response_model=TokenSaida, tags=["Auth"])
+def login(form: OAuth2PasswordRequestForm = Depends()):
+    email = form.username.strip().lower()
+    usuario = db.buscar_usuario_por_email(email)
+
+    hash_para_verificar = usuario["senha_hash"] if usuario else auth._HASH_FALSO
+    senha_valida = auth.verificar_senha(form.password, hash_para_verificar)
+
+    if not usuario or not senha_valida or not usuario.get("ativo"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="E-mail ou senha inválidos.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    token, expira_em = auth.criar_token(usuario["id_usuario"], usuario["papel"])
+    return TokenSaida(access_token=token, token_type="bearer", expires_in=expira_em)
+
+
+@api.get("/auth/me", response_model=UsuarioSaida, tags=["Auth"])
+def quem_sou_eu(usuario_atual: dict = Depends(auth.get_usuario_atual)):
+    return usuario_atual
 
 # ---------------------------------------------------------------------------
 # Helpers de camada de rota
@@ -96,28 +157,39 @@ def tratar_integrity_error(exc: Exception):
 
     raise exc
 
+def formatar_erro_banco(exc: Exception) -> str:
+    # Se for uma exceção disparada por trigger do banco (RAISE EXCEPTION)
+    mensagem = str(exc).strip()
+    if hasattr(exc, "pgerror") and exc.pgerror:
+        # Pega a linha principal do erro do PostgreSQL
+        linhas = [linha.strip() for linha in exc.pgerror.splitlines() if linha.strip()]
+        if linhas:
+            return linhas[0].replace("ERROR:", "").strip()
+    return mensagem
+
 
 # ===========================================================================
 # ESCOLA
 # ===========================================================================
 
-@app.post("/escolas", response_model=EscolaSaida, status_code=status.HTTP_201_CREATED, tags=["Escola"])
+@api.post("/escolas", response_model=EscolaSaida, status_code=status.HTTP_201_CREATED, tags=["Escola"])
 def criar_escola(payload: EscolaEntrada):
     try:
         return db.inserir_escola(
             payload.nome_escola, payload.codigo_inep, payload.cnpj,
             payload.endereco_escola, payload.telefone_escola, payload.email_escola,
+            rede_ensino=payload.rede_ensino,
         )
     except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
-@app.get("/escolas", response_model=List[EscolaSaida], tags=["Escola"])
+@api.get("/escolas", response_model=List[EscolaSaida], tags=["Escola"])
 def listar_escolas():
     return db.listar_escolas()
 
 
-@app.get("/escolas/{id_escola}", response_model=EscolaSaida, tags=["Escola"])
+@api.get("/escolas/{id_escola}", response_model=EscolaSaida, tags=["Escola"])
 def obter_escola(id_escola: int):
     escola = db.buscar_escola(id_escola)
     if not escola:
@@ -125,7 +197,7 @@ def obter_escola(id_escola: int):
     return escola
 
 
-@app.patch("/escolas/{id_escola}", response_model=EscolaSaida, tags=["Escola"])
+@api.patch("/escolas/{id_escola}", response_model=EscolaSaida, tags=["Escola"])
 def atualizar_escola(id_escola: int, payload: EscolaAtualizacao):
     if not db.buscar_escola(id_escola):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Escola não encontrada.")
@@ -136,7 +208,7 @@ def atualizar_escola(id_escola: int, payload: EscolaAtualizacao):
         tratar_integrity_error(exc)
 
 
-@app.delete("/escolas/{id_escola}", status_code=status.HTTP_204_NO_CONTENT, tags=["Escola"])
+@api.delete("/escolas/{id_escola}", status_code=status.HTTP_204_NO_CONTENT, tags=["Escola"])
 def deletar_escola(id_escola: int):
     if not db.buscar_escola(id_escola):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Escola não encontrada.")
@@ -150,17 +222,20 @@ def deletar_escola(id_escola: int):
 # PERIODO
 # ===========================================================================
 
-@app.post("/periodos", response_model=PeriodoSaida, status_code=status.HTTP_201_CREATED, tags=["Periodo"])
+@api.post("/periodos", response_model=PeriodoSaida, status_code=status.HTTP_201_CREATED, tags=["Periodo"])
 def criar_periodo(payload: PeriodoEntrada):
-    return db.inserir_periodo(payload.ano, payload.nome_periodo, payload.data_inicio, payload.data_fim, payload.situacao.value)
+    try:
+        return db.inserir_periodo(payload.ano, payload.nome_periodo, payload.data_inicio, payload.data_fim, payload.situacao.value)
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
+        tratar_integrity_error(exc)
 
 
-@app.get("/periodos", response_model=List[PeriodoSaida], tags=["Periodo"])
+@api.get("/periodos", response_model=List[PeriodoSaida], tags=["Periodo"])
 def listar_periodos():
     return db.listar_periodos()
 
 
-@app.get("/periodos/{id_periodo}", response_model=PeriodoSaida, tags=["Periodo"])
+@api.get("/periodos/{id_periodo}", response_model=PeriodoSaida, tags=["Periodo"])
 def obter_periodo(id_periodo: int):
     periodo = db.buscar_periodo(id_periodo)
     if not periodo:
@@ -168,14 +243,18 @@ def obter_periodo(id_periodo: int):
     return periodo
 
 
-@app.patch("/periodos/{id_periodo}", response_model=PeriodoSaida, tags=["Periodo"])
+@api.patch("/periodos/{id_periodo}", response_model=PeriodoSaida, tags=["Periodo"])
 def atualizar_periodo(id_periodo: int, payload: PeriodoAtualizacao):
     if not db.buscar_periodo(id_periodo):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Período não encontrado.")
-    return db.atualizar_periodo(id_periodo, campos_para_update(payload))
+    campos = campos_para_update(payload)
+    try:
+        return db.atualizar_periodo(id_periodo, campos)
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
+        tratar_integrity_error(exc)
 
 
-@app.delete("/periodos/{id_periodo}", status_code=status.HTTP_204_NO_CONTENT, tags=["Periodo"])
+@api.delete("/periodos/{id_periodo}", status_code=status.HTTP_204_NO_CONTENT, tags=["Periodo"])
 def deletar_periodo(id_periodo: int):
     if not db.buscar_periodo(id_periodo):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Período não encontrado.")
@@ -189,17 +268,20 @@ def deletar_periodo(id_periodo: int):
 # MATERIA
 # ===========================================================================
 
-@app.post("/materias", response_model=MateriaSaida, status_code=status.HTTP_201_CREATED, tags=["Materia"])
+@api.post("/materias", response_model=MateriaSaida, status_code=status.HTTP_201_CREATED, tags=["Materia"])
 def criar_materia(payload: MateriaEntrada):
-    return db.inserir_materia(payload.nome_materia, payload.carga_horaria)
+    try:
+        return db.inserir_materia(payload.nome_materia, payload.carga_horaria)
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
+        tratar_integrity_error(exc)
 
 
-@app.get("/materias", response_model=List[MateriaSaida], tags=["Materia"])
+@api.get("/materias", response_model=List[MateriaSaida], tags=["Materia"])
 def listar_materias():
     return db.listar_materias()
 
 
-@app.get("/materias/{id_materia}", response_model=MateriaSaida, tags=["Materia"])
+@api.get("/materias/{id_materia}", response_model=MateriaSaida, tags=["Materia"])
 def obter_materia(id_materia: int):
     materia = db.buscar_materia(id_materia)
     if not materia:
@@ -207,14 +289,18 @@ def obter_materia(id_materia: int):
     return materia
 
 
-@app.patch("/materias/{id_materia}", response_model=MateriaSaida, tags=["Materia"])
+@api.patch("/materias/{id_materia}", response_model=MateriaSaida, tags=["Materia"])
 def atualizar_materia(id_materia: int, payload: MateriaAtualizacao):
     if not db.buscar_materia(id_materia):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Matéria não encontrada.")
-    return db.atualizar_materia(id_materia, campos_para_update(payload))
+    campos = campos_para_update(payload)
+    try:
+        return db.atualizar_materia(id_materia, campos)
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
+        tratar_integrity_error(exc)
 
 
-@app.delete("/materias/{id_materia}", status_code=status.HTTP_204_NO_CONTENT, tags=["Materia"])
+@api.delete("/materias/{id_materia}", status_code=status.HTTP_204_NO_CONTENT, tags=["Materia"])
 def deletar_materia(id_materia: int):
     if not db.buscar_materia(id_materia):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Matéria não encontrada.")
@@ -228,20 +314,23 @@ def deletar_materia(id_materia: int):
 # RESPONSAVEL
 # ===========================================================================
 
-@app.post("/responsaveis", response_model=ResponsavelSaida, status_code=status.HTTP_201_CREATED, tags=["Responsavel"])
+@api.post("/responsaveis", response_model=ResponsavelSaida, status_code=status.HTTP_201_CREATED, tags=["Responsavel"])
 def criar_responsavel(payload: ResponsavelEntrada):
-    return db.inserir_responsavel(
-        payload.nome_resp, payload.cpf_resp, payload.telefone_resp,
-        payload.email_resp, payload.cep_resp, payload.endereco_resp,
-    )
+    try:
+        return db.inserir_responsavel(
+            payload.nome_resp, payload.cpf_resp, payload.telefone_resp,
+            payload.email_resp, payload.cep_resp, payload.endereco_resp,
+        )
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
+        tratar_integrity_error(exc)
 
 
-@app.get("/responsaveis", response_model=List[ResponsavelSaida], tags=["Responsavel"])
+@api.get("/responsaveis", response_model=List[ResponsavelSaida], tags=["Responsavel"])
 def listar_responsaveis():
     return db.listar_responsaveis()
 
 
-@app.get("/responsaveis/{id_responsavel}", response_model=ResponsavelSaida, tags=["Responsavel"])
+@api.get("/responsaveis/{id_responsavel}", response_model=ResponsavelSaida, tags=["Responsavel"])
 def obter_responsavel(id_responsavel: int):
     responsavel = db.buscar_responsavel(id_responsavel)
     if not responsavel:
@@ -249,14 +338,18 @@ def obter_responsavel(id_responsavel: int):
     return responsavel
 
 
-@app.patch("/responsaveis/{id_responsavel}", response_model=ResponsavelSaida, tags=["Responsavel"])
+@api.patch("/responsaveis/{id_responsavel}", response_model=ResponsavelSaida, tags=["Responsavel"])
 def atualizar_responsavel(id_responsavel: int, payload: ResponsavelAtualizacao):
     if not db.buscar_responsavel(id_responsavel):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Responsável não encontrado.")
-    return db.atualizar_responsavel(id_responsavel, campos_para_update(payload))
+    campos = campos_para_update(payload)
+    try:
+        return db.atualizar_responsavel(id_responsavel, campos)
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
+        tratar_integrity_error(exc)
 
 
-@app.delete("/responsaveis/{id_responsavel}", status_code=status.HTTP_204_NO_CONTENT, tags=["Responsavel"])
+@api.delete("/responsaveis/{id_responsavel}", status_code=status.HTTP_204_NO_CONTENT, tags=["Responsavel"])
 def deletar_responsavel(id_responsavel: int):
     if not db.buscar_responsavel(id_responsavel):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Responsável não encontrado.")
@@ -270,21 +363,24 @@ def deletar_responsavel(id_responsavel: int):
 # ALUNO
 # ===========================================================================
 
-@app.post("/alunos", response_model=AlunoSaida, status_code=status.HTTP_201_CREATED, tags=["Aluno"])
+@api.post("/alunos", response_model=AlunoSaida, status_code=status.HTTP_201_CREATED, tags=["Aluno"])
 def criar_aluno(payload: AlunoEntrada):
-    return db.inserir_aluno(
-        payload.numero_matricula, payload.nome_aluno, payload.data_nascimento, payload.cpf_aluno,
-        payload.telefone_aluno, payload.email_aluno, payload.cep_aluno, payload.endereco_aluno,
-        payload.situacao.value,
-    )
+    try:
+        return db.inserir_aluno(
+            payload.numero_matricula, payload.nome_aluno, payload.data_nascimento, payload.cpf_aluno,
+            payload.telefone_aluno, payload.email_aluno, payload.cep_aluno, payload.endereco_aluno,
+            payload.situacao.value,
+        )
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
+        tratar_integrity_error(exc)
 
 
-@app.get("/alunos", response_model=List[AlunoSaida], tags=["Aluno"])
+@api.get("/alunos", response_model=List[AlunoSaida], tags=["Aluno"])
 def listar_alunos(situacao: Optional[str] = Query(None), nome: Optional[str] = Query(None)):
     return db.listar_alunos(situacao=situacao, nome=nome)
 
 
-@app.get("/alunos/{id_aluno}", response_model=AlunoSaida, tags=["Aluno"])
+@api.get("/alunos/{id_aluno}", response_model=AlunoSaida, tags=["Aluno"])
 def obter_aluno(id_aluno: int):
     aluno = db.buscar_aluno(id_aluno)
     if not aluno:
@@ -292,14 +388,18 @@ def obter_aluno(id_aluno: int):
     return aluno
 
 
-@app.patch("/alunos/{id_aluno}", response_model=AlunoSaida, tags=["Aluno"])
+@api.patch("/alunos/{id_aluno}", response_model=AlunoSaida, tags=["Aluno"])
 def atualizar_aluno(id_aluno: int, payload: AlunoAtualizacao):
     if not db.buscar_aluno(id_aluno):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Aluno não encontrado.")
-    return db.atualizar_aluno(id_aluno, campos_para_update(payload))
+    campos = campos_para_update(payload)
+    try:
+        return db.atualizar_aluno(id_aluno, campos)
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
+        tratar_integrity_error(exc)
 
 
-@app.delete("/alunos/{id_aluno}", status_code=status.HTTP_204_NO_CONTENT, tags=["Aluno"])
+@api.delete("/alunos/{id_aluno}", status_code=status.HTTP_204_NO_CONTENT, tags=["Aluno"])
 def deletar_aluno(id_aluno: int):
     if not db.buscar_aluno(id_aluno):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Aluno não encontrado.")
@@ -311,7 +411,7 @@ def deletar_aluno(id_aluno: int):
 
 # Endpoints derivados das VIEWS do schema -----------------------------------
 
-@app.get("/alunos/{id_aluno}/escola-atual", tags=["Aluno"])
+@api.get("/alunos/{id_aluno}/escola-atual", tags=["Aluno"])
 def escola_atual_do_aluno(id_aluno: int):
     if not db.buscar_aluno(id_aluno):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Aluno não encontrado.")
@@ -321,14 +421,14 @@ def escola_atual_do_aluno(id_aluno: int):
     return resultado
 
 
-@app.get("/alunos/{id_aluno}/responsaveis-financeiros", tags=["Aluno"])
+@api.get("/alunos/{id_aluno}/responsaveis-financeiros", tags=["Aluno"])
 def responsaveis_financeiros_do_aluno(id_aluno: int):
     if not db.buscar_aluno(id_aluno):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Aluno não encontrado.")
     return db.responsaveis_financeiros_do_aluno(id_aluno)
 
 
-@app.get("/alunos/{id_aluno}/medias", tags=["Aluno"])
+@api.get("/alunos/{id_aluno}/medias", tags=["Aluno"])
 def medias_dinamicas_do_aluno(id_aluno: int):
     if not db.buscar_aluno(id_aluno):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Aluno não encontrado.")
@@ -339,7 +439,7 @@ def medias_dinamicas_do_aluno(id_aluno: int):
 # TURMA
 # ===========================================================================
 
-@app.post("/turmas", response_model=TurmaSaida, status_code=status.HTTP_201_CREATED, tags=["Turma"])
+@api.post("/turmas", response_model=TurmaSaida, status_code=status.HTTP_201_CREATED, tags=["Turma"])
 def criar_turma(payload: TurmaEntrada):
     try:
         return db.inserir_turma(
@@ -350,12 +450,12 @@ def criar_turma(payload: TurmaEntrada):
         tratar_integrity_error(exc)
 
 
-@app.get("/turmas", response_model=List[TurmaSaida], tags=["Turma"])
+@api.get("/turmas", response_model=List[TurmaSaida], tags=["Turma"])
 def listar_turmas(escola_id: Optional[int] = Query(None)):
     return db.listar_turmas(escola_id=escola_id)
 
 
-@app.get("/turmas/{id_turma}", response_model=TurmaSaida, tags=["Turma"])
+@api.get("/turmas/{id_turma}", response_model=TurmaSaida, tags=["Turma"])
 def obter_turma(id_turma: int):
     turma = db.buscar_turma(id_turma)
     if not turma:
@@ -363,7 +463,7 @@ def obter_turma(id_turma: int):
     return turma
 
 
-@app.patch("/turmas/{id_turma}", response_model=TurmaSaida, tags=["Turma"])
+@api.patch("/turmas/{id_turma}", response_model=TurmaSaida, tags=["Turma"])
 def atualizar_turma(id_turma: int, payload: TurmaAtualizacao):
     if not db.buscar_turma(id_turma):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Turma não encontrada.")
@@ -373,7 +473,7 @@ def atualizar_turma(id_turma: int, payload: TurmaAtualizacao):
         tratar_integrity_error(exc)
 
 
-@app.delete("/turmas/{id_turma}", status_code=status.HTTP_204_NO_CONTENT, tags=["Turma"])
+@api.delete("/turmas/{id_turma}", status_code=status.HTTP_204_NO_CONTENT, tags=["Turma"])
 def deletar_turma(id_turma: int):
     if not db.buscar_turma(id_turma):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Turma não encontrada.")
@@ -387,7 +487,7 @@ def deletar_turma(id_turma: int):
 # PROFESSOR
 # ===========================================================================
 
-@app.post("/professores", response_model=ProfessorSaida, status_code=status.HTTP_201_CREATED, tags=["Professor"])
+@api.post("/professores", response_model=ProfessorSaida, status_code=status.HTTP_201_CREATED, tags=["Professor"])
 def criar_professor(payload: ProfessorEntrada):
     try:
         return db.inserir_professor(
@@ -398,12 +498,12 @@ def criar_professor(payload: ProfessorEntrada):
         tratar_integrity_error(exc)
 
 
-@app.get("/professores", response_model=List[ProfessorSaida], tags=["Professor"])
+@api.get("/professores", response_model=List[ProfessorSaida], tags=["Professor"])
 def listar_professores(escola_id: Optional[int] = Query(None)):
     return db.listar_professores(escola_id=escola_id)
 
 
-@app.get("/professores/{id_professor}", response_model=ProfessorSaida, tags=["Professor"])
+@api.get("/professores/{id_professor}", response_model=ProfessorSaida, tags=["Professor"])
 def obter_professor(id_professor: int):
     professor = db.buscar_professor(id_professor)
     if not professor:
@@ -411,7 +511,7 @@ def obter_professor(id_professor: int):
     return professor
 
 
-@app.patch("/professores/{id_professor}", response_model=ProfessorSaida, tags=["Professor"])
+@api.patch("/professores/{id_professor}", response_model=ProfessorSaida, tags=["Professor"])
 def atualizar_professor(id_professor: int, payload: ProfessorAtualizacao):
     if not db.buscar_professor(id_professor):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Professor não encontrado.")
@@ -421,7 +521,7 @@ def atualizar_professor(id_professor: int, payload: ProfessorAtualizacao):
         tratar_integrity_error(exc)
 
 
-@app.delete("/professores/{id_professor}", status_code=status.HTTP_204_NO_CONTENT, tags=["Professor"])
+@api.delete("/professores/{id_professor}", status_code=status.HTTP_204_NO_CONTENT, tags=["Professor"])
 def deletar_professor(id_professor: int):
     if not db.buscar_professor(id_professor):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Professor não encontrado.")
@@ -435,7 +535,7 @@ def deletar_professor(id_professor: int):
 # MATRICULA
 # ===========================================================================
 
-@app.post("/matriculas", response_model=MatriculaSaida, status_code=status.HTTP_201_CREATED, tags=["Matricula"])
+@api.post("/matriculas", response_model=MatriculaSaida, status_code=status.HTTP_201_CREATED, tags=["Matricula"])
 def criar_matricula(payload: MatriculaEntrada):
     try:
         return db.inserir_matricula(payload.aluno_id, payload.turma_id, payload.data_matricula, payload.situacao.value)
@@ -443,12 +543,12 @@ def criar_matricula(payload: MatriculaEntrada):
         tratar_integrity_error(exc)
 
 
-@app.get("/matriculas", response_model=List[MatriculaSaida], tags=["Matricula"])
+@api.get("/matriculas", response_model=List[MatriculaSaida], tags=["Matricula"])
 def listar_matriculas(aluno_id: Optional[int] = Query(None), turma_id: Optional[int] = Query(None)):
     return db.listar_matriculas(aluno_id=aluno_id, turma_id=turma_id)
 
 
-@app.get("/matriculas/{id_matricula}", response_model=MatriculaSaida, tags=["Matricula"])
+@api.get("/matriculas/{id_matricula}", response_model=MatriculaSaida, tags=["Matricula"])
 def obter_matricula(id_matricula: int):
     matricula = db.buscar_matricula(id_matricula)
     if not matricula:
@@ -456,7 +556,7 @@ def obter_matricula(id_matricula: int):
     return matricula
 
 
-@app.patch("/matriculas/{id_matricula}", response_model=MatriculaSaida, tags=["Matricula"])
+@api.patch("/matriculas/{id_matricula}", response_model=MatriculaSaida, tags=["Matricula"])
 def atualizar_matricula(id_matricula: int, payload: MatriculaAtualizacao):
     if not db.buscar_matricula(id_matricula):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Matrícula não encontrada.")
@@ -466,7 +566,7 @@ def atualizar_matricula(id_matricula: int, payload: MatriculaAtualizacao):
         tratar_integrity_error(exc)
 
 
-@app.delete("/matriculas/{id_matricula}", status_code=status.HTTP_204_NO_CONTENT, tags=["Matricula"])
+@api.delete("/matriculas/{id_matricula}", status_code=status.HTTP_204_NO_CONTENT, tags=["Matricula"])
 def deletar_matricula(id_matricula: int):
     if not db.buscar_matricula(id_matricula):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Matrícula não encontrada.")
@@ -480,7 +580,7 @@ def deletar_matricula(id_matricula: int):
 # VÍNCULO ALUNO <-> RESPONSAVEL
 # ===========================================================================
 
-@app.post(
+@api.post(
     "/alunos/{id_aluno}/responsaveis/{id_responsavel}",
     response_model=VinculoResponsavelSaida,
     status_code=status.HTTP_201_CREATED,
@@ -492,12 +592,12 @@ def vincular_responsavel(id_aluno: int, id_responsavel: int, payload: VinculoRes
     if not db.buscar_responsavel(id_responsavel):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Responsável não encontrado.")
     try:
-        return db.vincular_responsavel(id_aluno, id_responsavel, payload.tipo_responsavel.value, int(payload.responsavel_financeiro))
+        return db.vincular_responsavel(id_aluno, id_responsavel, payload.tipo_responsavel.value, payload.responsavel_financeiro)
     except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
-@app.get(
+@api.get(
     "/alunos/{id_aluno}/responsaveis",
     response_model=List[VinculoResponsavelSaida],
     tags=["Vinculo Aluno-Responsavel"],
@@ -508,7 +608,7 @@ def listar_responsaveis_do_aluno(id_aluno: int):
     return db.listar_responsaveis_do_aluno(id_aluno)
 
 
-@app.delete(
+@api.delete(
     "/alunos/{id_aluno}/responsaveis/{id_responsavel}",
     status_code=status.HTTP_204_NO_CONTENT,
     tags=["Vinculo Aluno-Responsavel"],
@@ -516,35 +616,47 @@ def listar_responsaveis_do_aluno(id_aluno: int):
 def desvincular_responsavel(id_aluno: int, id_responsavel: int):
     if not db.buscar_vinculo(id_aluno, id_responsavel):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vínculo não encontrado.")
-    db.desvincular_responsavel(id_aluno, id_responsavel)
+    try:
+        db.desvincular_responsavel(id_aluno, id_responsavel)
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
+        tratar_integrity_error(exc)
 
 
 # ===========================================================================
 # GRADE CURRICULAR
 # ===========================================================================
 
-@app.post("/grades", response_model=GradeCurricularSaida, status_code=status.HTTP_201_CREATED, tags=["Grade Curricular"])
+@api.post("/grades", response_model=GradeCurricularSaida, status_code=status.HTTP_201_CREATED, tags=["Grade Curricular"])
 def criar_grade(payload: GradeCurricularEntrada):
     try:
-        return db.inserir_grade(payload.turma_id, payload.materia_id, payload.professor_id)
+        return db.inserir_grade(payload.turma_id, payload.materia_id, payload.professor_id, payload.carga_horaria_semanal)
     except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
-@app.get("/grades", response_model=List[GradeCurricularSaida], tags=["Grade Curricular"])
+@api.get("/grades", response_model=List[GradeCurricularSaida], tags=["Grade Curricular"])
 def listar_grades(turma_id: Optional[int] = Query(None)):
     return db.listar_grades(turma_id=turma_id)
 
 
-@app.get("/grades/{id_grade}", response_model=GradeCurricularSaida, tags=["Grade Curricular"])
+@api.get("/grades/{id_grade}", response_model=GradeCurricularSaida, tags=["Grade Curricular"])
 def obter_grade(id_grade: int):
     grade = db.buscar_grade(id_grade)
     if not grade:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Grade curricular não encontrada.")
     return grade
 
-
-@app.delete("/grades/{id_grade}", status_code=status.HTTP_204_NO_CONTENT, tags=["Grade Curricular"])
+@api.patch("/grades/{id_grade}", response_model=GradeCurricularSaida, tags=["Grade Curricular"])
+def atualizar_grade(id_grade: int, payload: GradeCurricularAtualizacao):
+    if not db.buscar_grade(id_grade):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Grade curricular não encontrada.")
+    campos = campos_para_update(payload)
+    try:
+        return db.atualizar_grade(id_grade, campos)
+    except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
+        tratar_integrity_error(exc)
+        
+@api.delete("/grades/{id_grade}", status_code=status.HTTP_204_NO_CONTENT, tags=["Grade Curricular"])
 def deletar_grade(id_grade: int):
     if not db.buscar_grade(id_grade):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Grade curricular não encontrada.")
@@ -558,7 +670,7 @@ def deletar_grade(id_grade: int):
 # AVALIACAO
 # ===========================================================================
 
-@app.post("/avaliacoes", response_model=AvaliacaoSaida, status_code=status.HTTP_201_CREATED, tags=["Avaliacao"])
+@api.post("/avaliacoes", response_model=AvaliacaoSaida, status_code=status.HTTP_201_CREATED, tags=["Avaliacao"])
 def criar_avaliacao(payload: AvaliacaoEntrada):
     try:
         return db.inserir_avaliacao(
@@ -569,12 +681,12 @@ def criar_avaliacao(payload: AvaliacaoEntrada):
         tratar_integrity_error(exc)
 
 
-@app.get("/avaliacoes", response_model=List[AvaliacaoSaida], tags=["Avaliacao"])
+@api.get("/avaliacoes", response_model=List[AvaliacaoSaida], tags=["Avaliacao"])
 def listar_avaliacoes(grade_id: Optional[int] = Query(None), periodo_id: Optional[int] = Query(None)):
     return db.listar_avaliacoes(grade_id=grade_id, periodo_id=periodo_id)
 
 
-@app.get("/avaliacoes/{id_avaliacao}", response_model=AvaliacaoSaida, tags=["Avaliacao"])
+@api.get("/avaliacoes/{id_avaliacao}", response_model=AvaliacaoSaida, tags=["Avaliacao"])
 def obter_avaliacao(id_avaliacao: int):
     avaliacao = db.buscar_avaliacao(id_avaliacao)
     if not avaliacao:
@@ -582,7 +694,7 @@ def obter_avaliacao(id_avaliacao: int):
     return avaliacao
 
 
-@app.patch("/avaliacoes/{id_avaliacao}", response_model=AvaliacaoSaida, tags=["Avaliacao"])
+@api.patch("/avaliacoes/{id_avaliacao}", response_model=AvaliacaoSaida, tags=["Avaliacao"])
 def atualizar_avaliacao(id_avaliacao: int, payload: AvaliacaoAtualizacao):
     if not db.buscar_avaliacao(id_avaliacao):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Avaliação não encontrada.")
@@ -592,7 +704,7 @@ def atualizar_avaliacao(id_avaliacao: int, payload: AvaliacaoAtualizacao):
         tratar_integrity_error(exc)
 
 
-@app.delete("/avaliacoes/{id_avaliacao}", status_code=status.HTTP_204_NO_CONTENT, tags=["Avaliacao"])
+@api.delete("/avaliacoes/{id_avaliacao}", status_code=status.HTTP_204_NO_CONTENT, tags=["Avaliacao"])
 def deletar_avaliacao(id_avaliacao: int):
     if not db.buscar_avaliacao(id_avaliacao):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Avaliação não encontrada.")
@@ -606,20 +718,20 @@ def deletar_avaliacao(id_avaliacao: int):
 # NOTA
 # ===========================================================================
 
-@app.post("/notas", response_model=NotaSaida, status_code=status.HTTP_201_CREATED, tags=["Nota"])
+@api.post("/notas", response_model=NotaSaida, status_code=status.HTTP_201_CREATED, tags=["Nota"])
 def criar_nota(payload: NotaEntrada):
     try:
-        return db.inserir_nota(payload.avaliacao_id, payload.aluno_id, payload.valor_nota)
+        return db.inserir_nota(payload.avaliacao_id, payload.aluno_id, payload.valor_nota, payload.observacao)
     except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
-@app.get("/notas", response_model=List[NotaSaida], tags=["Nota"])
+@api.get("/notas", response_model=List[NotaSaida], tags=["Nota"])
 def listar_notas(avaliacao_id: Optional[int] = Query(None), aluno_id: Optional[int] = Query(None)):
     return db.listar_notas(avaliacao_id=avaliacao_id, aluno_id=aluno_id)
 
 
-@app.get("/notas/{id_nota}", response_model=NotaSaida, tags=["Nota"])
+@api.get("/notas/{id_nota}", response_model=NotaSaida, tags=["Nota"])
 def obter_nota(id_nota: int):
     nota = db.buscar_nota(id_nota)
     if not nota:
@@ -627,7 +739,7 @@ def obter_nota(id_nota: int):
     return nota
 
 
-@app.patch("/notas/{id_nota}", response_model=NotaSaida, tags=["Nota"])
+@api.patch("/notas/{id_nota}", response_model=NotaSaida, tags=["Nota"])
 def atualizar_nota(id_nota: int, payload: NotaAtualizacao):
     if not db.buscar_nota(id_nota):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nota não encontrada.")
@@ -637,7 +749,7 @@ def atualizar_nota(id_nota: int, payload: NotaAtualizacao):
         tratar_integrity_error(exc)
 
 
-@app.delete("/notas/{id_nota}", status_code=status.HTTP_204_NO_CONTENT, tags=["Nota"])
+@api.delete("/notas/{id_nota}", status_code=status.HTTP_204_NO_CONTENT, tags=["Nota"])
 def deletar_nota(id_nota: int):
     if not db.buscar_nota(id_nota):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nota não encontrada.")
@@ -651,20 +763,23 @@ def deletar_nota(id_nota: int):
 # FREQUENCIA
 # ===========================================================================
 
-@app.post("/frequencias", response_model=FrequenciaSaida, status_code=status.HTTP_201_CREATED, tags=["Frequencia"])
+@api.post("/frequencias", response_model=FrequenciaSaida, status_code=status.HTTP_201_CREATED, tags=["Frequencia"])
 def criar_frequencia(payload: FrequenciaEntrada):
     try:
-        return db.inserir_frequencia(payload.grade_id, payload.aluno_id, payload.data_frequencia, payload.situacao.value)
+        return db.inserir_frequencia(
+            payload.grade_id, payload.aluno_id, payload.data_frequencia, payload.situacao.value,
+            justificativa=payload.justificativa,
+        )
     except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
 
 
-@app.get("/frequencias", response_model=List[FrequenciaSaida], tags=["Frequencia"])
+@api.get("/frequencias", response_model=List[FrequenciaSaida], tags=["Frequencia"])
 def listar_frequencias(grade_id: Optional[int] = Query(None), aluno_id: Optional[int] = Query(None)):
     return db.listar_frequencias(grade_id=grade_id, aluno_id=aluno_id)
 
 
-@app.get("/frequencias/{id_frequencia}", response_model=FrequenciaSaida, tags=["Frequencia"])
+@api.get("/frequencias/{id_frequencia}", response_model=FrequenciaSaida, tags=["Frequencia"])
 def obter_frequencia(id_frequencia: int):
     frequencia = db.buscar_frequencia(id_frequencia)
     if not frequencia:
@@ -672,7 +787,7 @@ def obter_frequencia(id_frequencia: int):
     return frequencia
 
 
-@app.patch("/frequencias/{id_frequencia}", response_model=FrequenciaSaida, tags=["Frequencia"])
+@api.patch("/frequencias/{id_frequencia}", response_model=FrequenciaSaida, tags=["Frequencia"])
 def atualizar_frequencia(id_frequencia: int, payload: FrequenciaAtualizacao):
     if not db.buscar_frequencia(id_frequencia):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Registro de frequência não encontrado.")
@@ -682,7 +797,7 @@ def atualizar_frequencia(id_frequencia: int, payload: FrequenciaAtualizacao):
         tratar_integrity_error(exc)
 
 
-@app.delete("/frequencias/{id_frequencia}", status_code=status.HTTP_204_NO_CONTENT, tags=["Frequencia"])
+@api.delete("/frequencias/{id_frequencia}", status_code=status.HTTP_204_NO_CONTENT, tags=["Frequencia"])
 def deletar_frequencia(id_frequencia: int):
     if not db.buscar_frequencia(id_frequencia):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Registro de frequência não encontrado.")
@@ -696,7 +811,7 @@ def deletar_frequencia(id_frequencia: int):
 # BOLETIM
 # ===========================================================================
 
-@app.post("/boletins", response_model=BoletimSaida, status_code=status.HTTP_201_CREATED, tags=["Boletim"])
+@api.post("/boletins", response_model=BoletimSaida, status_code=status.HTTP_201_CREATED, tags=["Boletim"])
 def criar_boletim(payload: BoletimEntrada):
     try:
         return db.inserir_boletim(
@@ -707,12 +822,12 @@ def criar_boletim(payload: BoletimEntrada):
         tratar_integrity_error(exc)
 
 
-@app.get("/boletins", response_model=List[BoletimSaida], tags=["Boletim"])
+@api.get("/boletins", response_model=List[BoletimSaida], tags=["Boletim"])
 def listar_boletins(aluno_id: Optional[int] = Query(None), periodo_id: Optional[int] = Query(None)):
     return db.listar_boletins(aluno_id=aluno_id, periodo_id=periodo_id)
 
 
-@app.get("/boletins/{id_boletim}", response_model=BoletimSaida, tags=["Boletim"])
+@api.get("/boletins/{id_boletim}", response_model=BoletimSaida, tags=["Boletim"])
 def obter_boletim(id_boletim: int):
     boletim = db.buscar_boletim(id_boletim)
     if not boletim:
@@ -720,7 +835,7 @@ def obter_boletim(id_boletim: int):
     return boletim
 
 
-@app.patch("/boletins/{id_boletim}", response_model=BoletimSaida, tags=["Boletim"])
+@api.patch("/boletins/{id_boletim}", response_model=BoletimSaida, tags=["Boletim"])
 def atualizar_boletim(id_boletim: int, payload: BoletimAtualizacao):
     if not db.buscar_boletim(id_boletim):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Boletim não encontrado.")
@@ -730,7 +845,7 @@ def atualizar_boletim(id_boletim: int, payload: BoletimAtualizacao):
         tratar_integrity_error(exc)
 
 
-@app.delete("/boletins/{id_boletim}", status_code=status.HTTP_204_NO_CONTENT, tags=["Boletim"])
+@api.delete("/boletins/{id_boletim}", status_code=status.HTTP_204_NO_CONTENT, tags=["Boletim"])
 def deletar_boletim(id_boletim: int):
     if not db.buscar_boletim(id_boletim):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Boletim não encontrado.")
@@ -744,7 +859,7 @@ def deletar_boletim(id_boletim: int):
 # BOLETO
 # ===========================================================================
 
-@app.post("/boletos", response_model=BoletoSaida, status_code=status.HTTP_201_CREATED, tags=["Boleto"])
+@api.post("/boletos", response_model=BoletoSaida, status_code=status.HTTP_201_CREATED, tags=["Boleto"])
 def criar_boleto(payload: BoletoEntrada):
     try:
         return db.inserir_boleto(
@@ -755,12 +870,12 @@ def criar_boleto(payload: BoletoEntrada):
         tratar_integrity_error(exc)
 
 
-@app.get("/boletos", response_model=List[BoletoSaida], tags=["Boleto"])
+@api.get("/boletos", response_model=List[BoletoSaida], tags=["Boleto"])
 def listar_boletos(aluno_id: Optional[int] = Query(None), situacao: Optional[str] = Query(None)):
     return db.listar_boletos(aluno_id=aluno_id, situacao=situacao)
 
 
-@app.get("/boletos/{id_boleto}", response_model=BoletoSaida, tags=["Boleto"])
+@api.get("/boletos/{id_boleto}", response_model=BoletoSaida, tags=["Boleto"])
 def obter_boleto(id_boleto: int):
     boleto = db.buscar_boleto(id_boleto)
     if not boleto:
@@ -768,7 +883,7 @@ def obter_boleto(id_boleto: int):
     return boleto
 
 
-@app.patch("/boletos/{id_boleto}", response_model=BoletoSaida, tags=["Boleto"])
+@api.patch("/boletos/{id_boleto}", response_model=BoletoSaida, tags=["Boleto"])
 def atualizar_boleto(id_boleto: int, payload: BoletoAtualizacao):
     if not db.buscar_boleto(id_boleto):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Boleto não encontrado.")
@@ -778,7 +893,7 @@ def atualizar_boleto(id_boleto: int, payload: BoletoAtualizacao):
         tratar_integrity_error(exc)
 
 
-@app.delete("/boletos/{id_boleto}", status_code=status.HTTP_204_NO_CONTENT, tags=["Boleto"])
+@api.delete("/boletos/{id_boleto}", status_code=status.HTTP_204_NO_CONTENT, tags=["Boleto"])
 def deletar_boleto(id_boleto: int):
     if not db.buscar_boleto(id_boleto):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Boleto não encontrado.")
@@ -786,3 +901,9 @@ def deletar_boleto(id_boleto: int):
         db.excluir_boleto(id_boleto)
     except (psycopg2.IntegrityError, psycopg2.errors.RaiseException) as exc:
         tratar_integrity_error(exc)
+
+# ===========================================================================
+# REGISTRO DO ROUTER PROTEGIDO
+# ===========================================================================
+
+app.include_router(api)

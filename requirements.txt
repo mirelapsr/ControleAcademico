@@ -4,3 +4,8 @@ psycopg2-binary
 python-dotenv
 pydantic
 email-validator
+pyjwt>=2.8.0
+bcrypt>=4.1.0
+python-multipart>=0.0.9
+
+#pip install -r requirements.txt

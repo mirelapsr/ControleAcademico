@@ -4,7 +4,7 @@ schemas.py — CAMADA DE VALIDAÇÃO
 Contratos de entrada/saída da API (Pydantic). 
 """
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 from typing import Optional
@@ -22,6 +22,14 @@ class ApiModel(BaseModel):
         populate_by_name=True,
         from_attributes=True
     )
+
+
+class AuditoriaSaida(ApiModel):
+    """Campos de auditoria devolvidos pela API. Opcionais de propósito: um
+    registro legado (ou uma tabela ainda sem a migração 001) não derruba o
+    response_model com erro de validação."""
+    criado_em: Optional[datetime] = None
+    atualizado_em: Optional[datetime] = None
 
 
 # ---------------------------------------------------------------------------
@@ -70,6 +78,9 @@ class TipoAvaliacaoEnum(str, Enum):
     trabalho = "Trabalho"
     projeto = "Projeto"
     recuperacao = "Recuperacao"
+    seminario = "Seminario"
+    participacao = "Participacao"
+    outro = "Outro"
 
 
 class SituacaoFrequenciaEnum(str, Enum):
@@ -98,6 +109,7 @@ class EscolaEntrada(ApiModel):
     nome_escola: str = Field(..., max_length=150)
     codigo_inep: Optional[str] = Field(None, max_length=8)
     cnpj: Optional[str] = Field(None, max_length=14)
+    rede_ensino: Optional[str] = Field(None, max_length=50)
     endereco_escola: Optional[str] = Field(None, max_length=200)
     telefone_escola: Optional[str] = Field(None, max_length=13)
     email_escola: Optional[EmailStr] = None
@@ -107,12 +119,13 @@ class EscolaAtualizacao(ApiModel):
     nome_escola: Optional[str] = Field(None, max_length=150)
     codigo_inep: Optional[str] = Field(None, max_length=8)
     cnpj: Optional[str] = Field(None, max_length=14)
+    rede_ensino: Optional[str] = Field(None, max_length=50)
     endereco_escola: Optional[str] = Field(None, max_length=200)
     telefone_escola: Optional[str] = Field(None, max_length=13)
     email_escola: Optional[EmailStr] = None
 
 
-class EscolaSaida(EscolaEntrada):
+class EscolaSaida(EscolaEntrada, AuditoriaSaida):
     id_escola: int
 
 
@@ -136,7 +149,7 @@ class PeriodoAtualizacao(ApiModel):
     situacao: Optional[SituacaoPeriodoEnum] = None
 
 
-class PeriodoSaida(PeriodoEntrada):
+class PeriodoSaida(PeriodoEntrada, AuditoriaSaida):
     id_periodo: int
 
 
@@ -154,7 +167,7 @@ class MateriaAtualizacao(ApiModel):
     carga_horaria: Optional[int] = Field(None, gt=0)
 
 
-class MateriaSaida(MateriaEntrada):
+class MateriaSaida(MateriaEntrada, AuditoriaSaida):
     id_materia: int
 
 
@@ -180,7 +193,7 @@ class ResponsavelAtualizacao(ApiModel):
     endereco_resp: Optional[str] = Field(None, max_length=200)
 
 
-class ResponsavelSaida(ResponsavelEntrada):
+class ResponsavelSaida(ResponsavelEntrada, AuditoriaSaida):
     id_responsavel: int
 
 
@@ -212,7 +225,7 @@ class AlunoAtualizacao(ApiModel):
     situacao: Optional[SituacaoAlunoEnum] = None
 
 
-class AlunoSaida(AlunoEntrada):
+class AlunoSaida(AlunoEntrada, AuditoriaSaida):
     id_aluno: int
 
 
@@ -238,7 +251,7 @@ class TurmaAtualizacao(ApiModel):
     ano_letivo: Optional[int] = Field(None, ge=2000, le=2100)
 
 
-class TurmaSaida(TurmaEntrada):
+class TurmaSaida(TurmaEntrada, AuditoriaSaida):
     id_turma: int
 
 
@@ -268,7 +281,7 @@ class ProfessorAtualizacao(ApiModel):
     escola_id: Optional[int] = None
 
 
-class ProfessorSaida(ProfessorEntrada):
+class ProfessorSaida(ProfessorEntrada, AuditoriaSaida):
     id_professor: int
 
 
@@ -290,7 +303,7 @@ class MatriculaAtualizacao(ApiModel):
     situacao: Optional[SituacaoMatriculaEnum] = None
 
 
-class MatriculaSaida(MatriculaEntrada):
+class MatriculaSaida(MatriculaEntrada, AuditoriaSaida):
     id_matricula: int
 
 
@@ -303,24 +316,32 @@ class VinculoResponsavelEntrada(ApiModel):
     responsavel_financeiro: bool = False
 
 
-class VinculoResponsavelSaida(ApiModel):
+class VinculoResponsavelSaida(AuditoriaSaida):
     aluno_id: int
     responsavel_id: int
     tipo_responsavel: TipoResponsavelEnum
     responsavel_financeiro: bool
 
 
-# ---------------------------------------------------------------------------
+# ===========================================================================
 # GRADE CURRICULAR
-# ---------------------------------------------------------------------------
+# ===========================================================================
 
 class GradeCurricularEntrada(ApiModel):
     turma_id: int
     materia_id: int
     professor_id: int
+    carga_horaria_semanal: Optional[int] = Field(None, gt=0, le=32767)
 
 
-class GradeCurricularSaida(GradeCurricularEntrada):
+class GradeCurricularAtualizacao(ApiModel):
+    turma_id: Optional[int] = None
+    materia_id: Optional[int] = None
+    professor_id: Optional[int] = None
+    carga_horaria_semanal: Optional[int] = Field(None, gt=0, le=32767)
+
+
+class GradeCurricularSaida(GradeCurricularEntrada, AuditoriaSaida):
     id_grade: int
 
 
@@ -346,7 +367,7 @@ class AvaliacaoAtualizacao(ApiModel):
     peso: Optional[Decimal] = Field(None, gt=0, le=99.99)
 
 
-class AvaliacaoSaida(AvaliacaoEntrada):
+class AvaliacaoSaida(AvaliacaoEntrada, AuditoriaSaida):
     id_avaliacao: int
 
 
@@ -358,13 +379,15 @@ class NotaEntrada(ApiModel):
     avaliacao_id: int
     aluno_id: int
     valor_nota: Decimal = Field(..., ge=0, le=10)
+    observacao: Optional[str] = Field(None, max_length=255)
 
 
 class NotaAtualizacao(ApiModel):
     valor_nota: Optional[Decimal] = Field(None, ge=0, le=10)
+    observacao: Optional[str] = Field(None, max_length=255)
 
 
-class NotaSaida(NotaEntrada):
+class NotaSaida(NotaEntrada, AuditoriaSaida):
     id_nota: int
 
 
@@ -377,14 +400,16 @@ class FrequenciaEntrada(ApiModel):
     aluno_id: int
     data_frequencia: date
     situacao: SituacaoFrequenciaEnum
+    justificativa: Optional[str] = Field(None, max_length=255)
 
 
 class FrequenciaAtualizacao(ApiModel):
     situacao: Optional[SituacaoFrequenciaEnum] = None
     data_frequencia: Optional[date] = None
+    justificativa: Optional[str] = Field(None, max_length=255)
 
 
-class FrequenciaSaida(FrequenciaEntrada):
+class FrequenciaSaida(FrequenciaEntrada, AuditoriaSaida):
     id_frequencia: int
 
 
@@ -405,7 +430,7 @@ class BoletimAtualizacao(ApiModel):
     situacao: Optional[SituacaoBoletimEnum] = None
 
 
-class BoletimSaida(BoletimEntrada):
+class BoletimSaida(BoletimEntrada, AuditoriaSaida):
     id_boletim: int
 
 
@@ -427,7 +452,7 @@ class BoletoAtualizacao(ApiModel):
     situacao: Optional[SituacaoBoletoEnum] = None
 
 
-class BoletoSaida(ApiModel):
+class BoletoSaida(AuditoriaSaida):
     id_boleto: int
     numero_boleto: str
     aluno_id: int
@@ -436,3 +461,24 @@ class BoletoSaida(ApiModel):
     data_vencimento: date
     data_pagamento: Optional[date] = None
     situacao: SituacaoBoletoEnum
+
+
+# ---------------------------------------------------------------------------
+# AUTENTICACAO
+# ---------------------------------------------------------------------------
+
+class TokenSaida(BaseModel):
+    """Herda de BaseModel puro (não de ApiModel) para preservar os nomes
+    exatos access_token / token_type / expires_in em snake_case, exigidos
+    pelo padrão OAuth2 — o alias_generator para camelCase quebraria o
+    contrato esperado por clientes OAuth2 (ex.: Swagger 'Authorize')."""
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+
+
+class UsuarioSaida(ApiModel):
+    id_usuario: int
+    nome: str
+    email: EmailStr
+    papel: str

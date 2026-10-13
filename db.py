@@ -4,19 +4,43 @@ db.py — CAMADA DE BANCO
 Banco: PostgreSQL (database CAcademic).
 Driver: psycopg2, com RealDictCursor (as linhas voltam como dict).
 
-Pré-requisito: o banco `CAcademic` já deve existir. A API, no
-startup, cria as TABELAS (`criar_tabelas`) usando `CREATE TABLE IF NOT
-EXISTS` — portanto é seguro reiniciar a API sem perder dados.
+Fonte única do schema: `controle2.sql`. Ele recria as tabelas do zero
+(rode no console do DataGrip). No startup, `criar_tabelas` só confere a estrutura: não
+altera nada se o schema está completo, cria as tabelas se o banco está
+vazio (usando o mesmo DDL do arquivo) e interrompe a API se o banco
+estiver desatualizado. Reiniciar a API nunca apaga dados.
 """
 
+import logging
 import os
+import re
 from contextlib import contextmanager
+from pathlib import Path
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+ARQUIVO_SCHEMA = Path(__file__).resolve().parent / "controle2.sql"
+_MARCA_INICIO = "-- >>> SCHEMA:INICIO"
+_MARCA_FIM = "-- <<< SCHEMA:FIM"
+_COMANDOS_PROIBIDOS = re.compile(r"\b(DROP\s+(TABLE|DATABASE|SCHEMA)|TRUNCATE)\b", re.IGNORECASE)
+
+TABELAS_ESPERADAS = (
+    "usuario", "escola", "periodo", "turma", "aluno", "responsavel", "alunoresponsavel",
+    "matricula", "professor", "materia", "grade_curricular", "avaliacao", "nota",
+    "frequencia", "boletim", "boleto",
+)
+_COLUNAS_OBRIGATORIAS = (
+    tuple((t, c) for t in TABELAS_ESPERADAS for c in ("criado_em", "atualizado_em"))
+    + (("grade_curricular", "carga_horaria_semanal"), ("nota", "observacao"))
+)
+
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
@@ -28,6 +52,8 @@ CONFIG = {
 
 
 def conectar():
+    if DATABASE_URL:
+        return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
     return psycopg2.connect(
         host=CONFIG["host"],
         user=CONFIG["user"],
@@ -35,6 +61,19 @@ def conectar():
         dbname=CONFIG["database"], 
         port=CONFIG["port"],
         cursor_factory=RealDictCursor 
+    )
+
+
+def conectar_admin():
+    if DATABASE_URL:
+        return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+    return psycopg2.connect(
+        host=CONFIG["host"],
+        user=os.getenv("DB_ADMIN_USER", CONFIG["user"]),
+        password=os.getenv("DB_ADMIN_PASSWORD", CONFIG["password"]),
+        dbname=CONFIG["database"],
+        port=CONFIG["port"],
+        cursor_factory=RealDictCursor,
     )
 
 
@@ -63,229 +102,132 @@ def cursor(commit: bool = False):
 
 
 # ===========================================================================
-# CRIAÇÃO DE TABELAS (idempotente — usa CREATE TABLE IF NOT EXISTS)
+# SCHEMA (fonte única: controle2.sql)
 # ===========================================================================
 
+def _ddl_do_schema() -> str:
+    """Devolve o trecho de controle2.sql entre os marcadores SCHEMA:INICIO
+    e SCHEMA:FIM: o mesmo DDL que o DataGrip executa na Parte 2, sem a limpeza da Parte 1."""
+    try:
+        texto = ARQUIVO_SCHEMA.read_text(encoding="utf-8")
+        ddl = texto[texto.index(_MARCA_INICIO) + len(_MARCA_INICIO):texto.index(_MARCA_FIM)]
+    except (OSError, ValueError) as exc:
+        raise RuntimeError(f"Schema indisponível: {ARQUIVO_SCHEMA} ausente ou sem marcadores.") from exc
+    if _COMANDOS_PROIBIDOS.search(ddl):
+        raise RuntimeError("controle2.sql: trecho do schema contém comando destrutivo.")
+    return ddl
+
+
+def _diagnosticar_estrutura(cur) -> tuple[list[str], list[str]]:
+    """Devolve (tabelas ausentes, itens desatualizados) em relação ao schema final."""
+    cur.execute(
+        """SELECT table_name, column_name FROM information_schema.columns
+           WHERE table_schema = current_schema() AND table_name = ANY(%s)""",
+        (list(TABELAS_ESPERADAS),),
+    )
+    existentes = {(l["table_name"], l["column_name"]) for l in cur.fetchall()}
+    presentes = {tabela for tabela, _ in existentes}
+
+    ausentes = [t for t in TABELAS_ESPERADAS if t not in presentes]
+    desatualizados = [
+        f"{t}.{c}" for t, c in _COLUNAS_OBRIGATORIAS if t in presentes and (t, c) not in existentes
+    ]
+    if "avaliacao" in presentes:
+        cur.execute(
+            """SELECT pg_get_constraintdef(oid) AS definicao FROM pg_constraint
+               WHERE conname = 'chk_avaliacao_tipo' AND conrelid = to_regclass('avaliacao')"""
+        )
+        linha = cur.fetchone()
+        if not linha or "Seminario" not in linha["definicao"]:
+            desatualizados.append("avaliacao.chk_avaliacao_tipo")
+    return ausentes, desatualizados
+
+
 def criar_tabelas() -> None:
-    ddl = """
-    CREATE TABLE IF NOT EXISTS escola (
-        id_escola        SERIAL PRIMARY KEY,
-        nome_escola      VARCHAR(150) NOT NULL,
-        codigo_inep      VARCHAR(8),
-        cnpj             VARCHAR(14),
-        endereco_escola  VARCHAR(200),
-        telefone_escola  VARCHAR(13),
-        email_escola     VARCHAR(100)
-    );
+    """Garante que o schema exista exatamente como em controle2.sql.
 
-    CREATE TABLE IF NOT EXISTS periodo (
-        id_periodo       SERIAL PRIMARY KEY,
-        ano              SMALLINT NOT NULL,
-        nome_periodo     VARCHAR(30) NOT NULL,
-        data_inicio      DATE NOT NULL,
-        data_fim         DATE NOT NULL,
-        situacao         VARCHAR(50) CHECK (situacao IN ('Ativo','Encerrado')) NOT NULL DEFAULT 'Ativo'
-    );
-
-    CREATE TABLE IF NOT EXISTS materia (
-        id_materia       SERIAL PRIMARY KEY,
-        nome_materia     VARCHAR(80) NOT NULL,
-        carga_horaria    INTEGER CHECK (carga_horaria > 0),
-        CONSTRAINT uq_materia_nome UNIQUE (nome_materia)
-    );
-
-    CREATE TABLE IF NOT EXISTS responsavel (
-        id_responsavel   SERIAL PRIMARY KEY,
-        nome_resp        VARCHAR(100) NOT NULL,
-        cpf_resp         VARCHAR(11),
-        telefone_resp    VARCHAR(13),
-        email_resp       VARCHAR(100),
-        cep_resp         VARCHAR(8),
-        endereco_resp    VARCHAR(200)
-    );
-
-    CREATE TABLE IF NOT EXISTS aluno (
-        id_aluno           SERIAL PRIMARY KEY,
-        numero_matricula   VARCHAR(20) NOT NULL,
-        nome_aluno         VARCHAR(100) NOT NULL,
-        data_nascimento    DATE NOT NULL,
-        cpf_aluno          VARCHAR(11),
-        telefone_aluno     VARCHAR(13),
-        email_aluno        VARCHAR(100),
-        cep_aluno          VARCHAR(8),
-        endereco_aluno     VARCHAR(200),
-        situacao           VARCHAR(50) CHECK (situacao IN ('Ativo','Inativo','Transferido')) NOT NULL DEFAULT 'Ativo'
-    );
-
-    CREATE TABLE IF NOT EXISTS turma (
-        id_turma             SERIAL PRIMARY KEY,
-        nome_turma           VARCHAR(30) NOT NULL,
-        serie                VARCHAR(45),
-        turno                VARCHAR(50) CHECK (turno IN ('Manha','Tarde','Noite','Integral')) NOT NULL,
-        capacidade           INT,
-        escola_id_escola     INT NOT NULL,
-        ano_letivo           SMALLINT NOT NULL,
-        CONSTRAINT fk_turma_escola FOREIGN KEY (escola_id_escola) REFERENCES escola(id_escola)
-    );
-
-    CREATE TABLE IF NOT EXISTS professor (
-        id_professor     SERIAL PRIMARY KEY,
-        nome_prof        VARCHAR(100) NOT NULL,
-        cpf_prof         VARCHAR(11),
-        telefone_prof    VARCHAR(13),
-        email_prof       VARCHAR(100),
-        cep_prof         VARCHAR(8),
-        endereco_prof    VARCHAR(200),
-        situacao         VARCHAR(50) CHECK (situacao IN ('Ativo','Inativo')) NOT NULL DEFAULT 'Ativo',
-        escola_id_escola INT NOT NULL,
-        CONSTRAINT fk_professor_escola FOREIGN KEY (escola_id_escola) REFERENCES escola(id_escola)
-    );
-
-    CREATE TABLE IF NOT EXISTS alunoresponsavel (
-        aluno_id_aluno               INT NOT NULL,
-        responsavel_id_responsavel   INT NOT NULL,
-        tipo_responsavel             VARCHAR(50) CHECK (tipo_responsavel IN ('Pai','Mae','ResponsavelLegal','Outro')) NOT NULL,
-        responsavel_financeiro       BOOLEAN NOT NULL DEFAULT FALSE,
-        PRIMARY KEY (aluno_id_aluno, responsavel_id_responsavel),
-        CONSTRAINT fk_ar_aluno FOREIGN KEY (aluno_id_aluno) REFERENCES aluno(id_aluno),
-        CONSTRAINT fk_ar_responsavel FOREIGN KEY (responsavel_id_responsavel) REFERENCES responsavel(id_responsavel)
-    );
-
-    CREATE TABLE IF NOT EXISTS matricula (
-        id_matricula     SERIAL PRIMARY KEY,
-        aluno_id_aluno   INT NOT NULL,
-        turma_id_turma   INT NOT NULL,
-        data_matricula   DATE NOT NULL,
-        situacao         VARCHAR(50) CHECK (situacao IN ('Ativa','Cancelada','Transferida','Concluida')) NOT NULL DEFAULT 'Ativa',
-        CONSTRAINT fk_matricula_aluno FOREIGN KEY (aluno_id_aluno) REFERENCES aluno(id_aluno),
-        CONSTRAINT fk_matricula_turma FOREIGN KEY (turma_id_turma) REFERENCES turma(id_turma)
-    );
-
-    CREATE TABLE IF NOT EXISTS grade_curricular (
-        id_grade                SERIAL PRIMARY KEY,
-        turma_id_turma          INT NOT NULL,
-        materia_id_materia      INT NOT NULL,
-        professor_id_professor  INT NOT NULL,
-        CONSTRAINT fk_grade_turma FOREIGN KEY (turma_id_turma) REFERENCES turma(id_turma),
-        CONSTRAINT fk_grade_materia FOREIGN KEY (materia_id_materia) REFERENCES materia(id_materia),
-        CONSTRAINT fk_grade_professor FOREIGN KEY (professor_id_professor) REFERENCES professor(id_professor),
-        CONSTRAINT uq_turma_materia UNIQUE (turma_id_turma, materia_id_materia)
-    );
-
-    CREATE TABLE IF NOT EXISTS avaliacao (
-        id_avaliacao        SERIAL PRIMARY KEY,
-        grade_id_grade      INT NOT NULL,
-        periodo_id_periodo  INT NOT NULL,
-        tipo                VARCHAR(50) CHECK (tipo IN ('Prova','Trabalho','Projeto','Recuperacao')) NOT NULL,
-        nome_avaliacao      VARCHAR(100) NOT NULL,
-        data_avaliacao      DATE NOT NULL,
-        peso                DECIMAL(4,2) NOT NULL DEFAULT 1.00,
-        CONSTRAINT fk_avaliacao_grade FOREIGN KEY (grade_id_grade) REFERENCES grade_curricular(id_grade),
-        CONSTRAINT fk_avaliacao_periodo FOREIGN KEY (periodo_id_periodo) REFERENCES periodo(id_periodo)
-    );
-
-    CREATE TABLE IF NOT EXISTS nota (
-        id_nota                 SERIAL PRIMARY KEY,
-        avaliacao_id_avaliacao  INT NOT NULL,
-        aluno_id_aluno          INT NOT NULL,
-        valor_nota              DECIMAL(4,2) NOT NULL,
-        CONSTRAINT fk_nota_avaliacao FOREIGN KEY (avaliacao_id_avaliacao) REFERENCES avaliacao(id_avaliacao),
-        CONSTRAINT fk_nota_aluno FOREIGN KEY (aluno_id_aluno) REFERENCES aluno(id_aluno),
-        CONSTRAINT uq_nota_avaliacao_aluno UNIQUE (avaliacao_id_avaliacao, aluno_id_aluno)
-    );
-
-    CREATE TABLE IF NOT EXISTS frequencia (
-        id_frequencia    SERIAL PRIMARY KEY,
-        grade_id_grade   INT NOT NULL,
-        aluno_id_aluno   INT NOT NULL,
-        data_frequencia  DATE NOT NULL,
-        situacao         VARCHAR(50) CHECK (situacao IN ('Presente','Falta','FaltaJustificada')) NOT NULL,
-        CONSTRAINT fk_frequencia_grade FOREIGN KEY (grade_id_grade) REFERENCES grade_curricular(id_grade),
-        CONSTRAINT fk_frequencia_aluno FOREIGN KEY (aluno_id_aluno) REFERENCES aluno(id_aluno),
-        CONSTRAINT uq_freq_aluno_grade_data UNIQUE (grade_id_grade, aluno_id_aluno, data_frequencia)
-    );
-
-    CREATE TABLE IF NOT EXISTS boletim (
-        id_boletim          SERIAL PRIMARY KEY,
-        aluno_id_aluno      INT NOT NULL,
-        periodo_id_periodo  INT NOT NULL,
-        materia_id_materia  INT NOT NULL,
-        media_final         DECIMAL(4,2) NOT NULL,
-        situacao            VARCHAR(50) CHECK (situacao IN ('Aberto','Fechado')) NOT NULL DEFAULT 'Aberto',
-        CONSTRAINT fk_boletim_aluno FOREIGN KEY (aluno_id_aluno) REFERENCES aluno(id_aluno),
-        CONSTRAINT fk_boletim_periodo FOREIGN KEY (periodo_id_periodo) REFERENCES periodo(id_periodo),
-        CONSTRAINT fk_boletim_materia FOREIGN KEY (materia_id_materia) REFERENCES materia(id_materia),
-        CONSTRAINT uq_boletim_aluno_periodo_materia UNIQUE (aluno_id_aluno, periodo_id_periodo, materia_id_materia)
-    );
-
-    CREATE TABLE IF NOT EXISTS boleto (
-        id_boleto          SERIAL PRIMARY KEY,
-        numero_boleto      VARCHAR(50) NOT NULL,
-        aluno_id_aluno     INT NOT NULL,
-        competencia        CHAR(7) NOT NULL,
-        valor_mensalidade  DECIMAL(10,2) NOT NULL,
-        data_vencimento    DATE NOT NULL,
-        data_pagamento     DATE,
-        situacao           VARCHAR(50) CHECK (situacao IN ('Pendente','Pago','Atrasado','Cancelado')) NOT NULL DEFAULT 'Pendente',
-        CONSTRAINT fk_boleto_aluno FOREIGN KEY (aluno_id_aluno) REFERENCES aluno(id_aluno)
-    );
+    - Schema completo e atualizado: não executa nenhum DDL (funciona também
+      com um usuário sem permissão de DDL).
+    - Tabelas ausentes (banco vazio): executa o DDL do arquivo.
+    - Banco existente porém desatualizado: interrompe o startup com instrução
+      para recriar o banco. Nunca altera tabelas existentes.
     """
-
-    views = """
-    CREATE OR REPLACE VIEW vw_aluno_escola_atual AS
-    SELECT a.id_aluno, e.id_escola, e.nome_escola
-    FROM aluno a
-    JOIN matricula m ON m.aluno_id_aluno = a.id_aluno AND m.situacao = 'Ativa'
-    JOIN turma t ON t.id_turma = m.turma_id_turma
-    JOIN escola e ON e.id_escola = t.escola_id_escola;
-
-    CREATE OR REPLACE VIEW vw_aluno_responsavel_financeiro AS
-    SELECT ar.aluno_id_aluno, r.id_responsavel, r.nome_resp, r.email_resp, r.telefone_resp
-    FROM alunoresponsavel ar
-    JOIN responsavel r ON r.id_responsavel = ar.responsavel_id_responsavel
-    WHERE ar.responsavel_financeiro = TRUE;
-
-    CREATE OR REPLACE VIEW vw_aluno_media_dinamica AS
-    SELECT
-        n.aluno_id_aluno,
-        a.periodo_id_periodo,
-        g.materia_id_materia,
-        ROUND(SUM(n.valor_nota * a.peso) / SUM(a.peso), 2) AS media_calculada,
-        COUNT(n.id_nota) AS qtd_avaliacoes_contabilizadas
-    FROM nota n
-    JOIN avaliacao a ON a.id_avaliacao = n.avaliacao_id_avaliacao
-    JOIN grade_curricular g ON g.id_grade = a.grade_id_grade
-    GROUP BY n.aluno_id_aluno, a.periodo_id_periodo, g.materia_id_materia;
-    """
-
-    conn = conectar()
+    conn = conectar_admin()
     try:
         with conn.cursor() as cur:
-            for statement in ddl.split(";"):
-                if statement.strip():
-                    cur.execute(statement)
-            for statement in views.split(";"):
-                if statement.strip():
-                    cur.execute(statement)
-        conn.commit()
+            ausentes, desatualizados = _diagnosticar_estrutura(cur)
+            if ausentes:
+                logger.info("Criando schema (tabelas ausentes: %s)", ", ".join(ausentes))
+                cur.execute(_ddl_do_schema())
+                conn.commit()
+                ausentes, desatualizados = _diagnosticar_estrutura(cur)
+            if ausentes or desatualizados:
+                raise RuntimeError(
+                    "Banco desatualizado em relação a controle2.sql "
+                    f"(ausentes: {ausentes or '-'}; divergentes: {desatualizados or '-'}). "
+                    "Execute controle2.sql inteiro no DataGrip para recriar as tabelas."
+                )
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         conn.close()
+
+
+# ===========================================================================
+# USUARIO
+# ===========================================================================
+
+def inserir_usuario(nome, email, senha_hash, papel="ADMIN"):
+    with cursor(commit=True) as cur:
+        cur.execute(
+            """INSERT INTO usuario (nome, email, senha_hash, papel)
+               VALUES (%s, %s, %s, %s) RETURNING id_usuario""",
+            (nome, email.strip().lower(), senha_hash, papel),
+        )
+        novo_id = cur.fetchone()["id_usuario"]
+        cur.execute(
+            """SELECT id_usuario, nome, email, senha_hash, papel, ativo, criado_em, atualizado_em
+               FROM usuario WHERE id_usuario = %s""",
+            (novo_id,),
+        )
+        return cur.fetchone()
+
+
+def buscar_usuario(id_usuario):
+    with cursor() as cur:
+        cur.execute(
+            """SELECT id_usuario, nome, email, senha_hash, papel, ativo, criado_em, atualizado_em
+               FROM usuario WHERE id_usuario = %s""",
+            (id_usuario,),
+        )
+        return cur.fetchone()
+
+
+def buscar_usuario_por_email(email):
+    with cursor() as cur:
+        cur.execute(
+            """SELECT id_usuario, nome, email, senha_hash, papel, ativo, criado_em, atualizado_em
+               FROM usuario WHERE email = %s""",
+            (email.strip().lower(),),
+        )
+        return cur.fetchone()
 
 
 # ===========================================================================
 # ESCOLA
 # ===========================================================================
 
-def inserir_escola(nome, codigo_inep, cnpj, endereco, telefone, email):
+def inserir_escola(nome, codigo_inep, cnpj, endereco, telefone, email, rede_ensino=None):
     with cursor(commit=True) as cur:
         cur.execute(
-            """INSERT INTO escola (nome_escola, codigo_inep, cnpj, endereco_escola, telefone_escola, email_escola)
-               VALUES (%s, %s, %s, %s, %s, %s) RETURNING id_escola""",
-            (nome, codigo_inep, cnpj, endereco, telefone, email),
+            """INSERT INTO escola (nome_escola, codigo_inep, cnpj, rede_ensino, endereco_escola, telefone_escola, email_escola)
+               VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id_escola""",
+            (nome, codigo_inep, cnpj, rede_ensino, endereco, telefone, email),
         )
         novo_id = cur.fetchone()["id_escola"]
         cur.execute("""SELECT id_escola, nome_escola, codigo_inep,
-                cnpj, endereco_escola, telefone_escola,
+                cnpj, rede_ensino, endereco_escola, telefone_escola,
                 email_escola, criado_em, atualizado_em
                 FROM escola WHERE id_escola = %s""", (novo_id,))
         return cur.fetchone()
@@ -294,7 +236,7 @@ def inserir_escola(nome, codigo_inep, cnpj, endereco, telefone, email):
 def listar_escolas():
     with cursor() as cur:
         cur.execute("""SELECT id_escola, nome_escola, codigo_inep,
-                cnpj, endereco_escola, telefone_escola,
+                cnpj, rede_ensino, endereco_escola, telefone_escola,
                 email_escola, criado_em, atualizado_em
                 FROM escola ORDER BY id_escola""")
         return cur.fetchall()
@@ -303,7 +245,7 @@ def listar_escolas():
 def buscar_escola(id_escola):
     with cursor() as cur:
         cur.execute("""SELECT id_escola, nome_escola, codigo_inep,
-                cnpj, endereco_escola, telefone_escola,
+                cnpj, rede_ensino, endereco_escola, telefone_escola,
                 email_escola, criado_em, atualizado_em
                 FROM escola WHERE id_escola = %s""", (id_escola,))
         return cur.fetchone()
@@ -314,7 +256,7 @@ def atualizar_escola(id_escola, campos: dict):
     with cursor(commit=True) as cur:
         cur.execute(f"UPDATE escola SET {set_clause} WHERE id_escola = %s", (*campos.values(), id_escola))
         cur.execute("""SELECT id_escola, nome_escola, codigo_inep,
-                cnpj, endereco_escola, telefone_escola,
+                cnpj, rede_ensino, endereco_escola, telefone_escola,
                 email_escola, criado_em, atualizado_em
                 FROM escola WHERE id_escola = %s""", (id_escola,))
         return cur.fetchone()
@@ -391,21 +333,21 @@ def inserir_materia(nome, carga_horaria):
             (nome, carga_horaria)
         )
         novo_id = cur.fetchone()["id_materia"]
-        cur.execute("""SELECT id_materia, nome_materia, carga_horaria
+        cur.execute("""SELECT id_materia, nome_materia, carga_horaria, criado_em, atualizado_em
                 FROM materia WHERE id_materia = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_materias():
     with cursor() as cur:
-        cur.execute("""SELECT id_materia, nome_materia, carga_horaria
+        cur.execute("""SELECT id_materia, nome_materia, carga_horaria, criado_em, atualizado_em
                 FROM materia ORDER BY id_materia""")
         return cur.fetchall()
 
 
 def buscar_materia(id_materia):
     with cursor() as cur:
-        cur.execute("""SELECT id_materia, nome_materia, carga_horaria
+        cur.execute("""SELECT id_materia, nome_materia, carga_horaria, criado_em, atualizado_em
                 FROM materia WHERE id_materia = %s""", (id_materia,))
         return cur.fetchone()
 
@@ -414,7 +356,7 @@ def atualizar_materia(id_materia, campos: dict):
     set_clause = ", ".join(f"{c.lower()} = %s" for c in campos)
     with cursor(commit=True) as cur:
         cur.execute(f"UPDATE materia SET {set_clause} WHERE id_materia = %s", (*campos.values(), id_materia))
-        cur.execute("""SELECT id_materia, nome_materia, carga_horaria
+        cur.execute("""SELECT id_materia, nome_materia, carga_horaria, criado_em, atualizado_em
                 FROM materia WHERE id_materia = %s""", (id_materia,))
         return cur.fetchone()
 
@@ -513,7 +455,7 @@ def listar_alunos(situacao: str | None = None, nome: str | None = None):
         query += " AND situacao = %s"
         params.append(situacao)
     if nome:
-        query += " AND nome_aluno LIKE %s"
+        query += " AND nome_aluno ILIKE %s"
         params.append(f"%{nome}%")
     query += " ORDER BY id_aluno"
     with cursor() as cur:
@@ -784,7 +726,7 @@ def vincular_responsavel(aluno_id, responsavel_id, tipo, financeiro):
         )
         cur.execute(
             """SELECT aluno_id_aluno AS aluno_id, responsavel_id_responsavel AS responsavel_id, tipo_responsavel,
-                responsavel_financeiro
+                responsavel_financeiro, criado_em, atualizado_em
                 FROM alunoresponsavel WHERE aluno_id_aluno = %s AND responsavel_id_responsavel = %s""",
             (aluno_id, responsavel_id),
         )
@@ -798,7 +740,8 @@ def listar_responsaveis_do_aluno(aluno_id):
                       ar.responsavel_id_responsavel AS responsavel_id,
                       ar.tipo_responsavel,
                       ar.responsavel_financeiro,
-                      r.nome_resp, r.email_resp, r.telefone_resp
+                      r.nome_resp, r.email_resp, r.telefone_resp,
+                      ar.criado_em, ar.atualizado_em
                FROM alunoresponsavel ar
                JOIN responsavel r ON r.id_responsavel = ar.responsavel_id_responsavel
                WHERE ar.aluno_id_aluno = %s""",
@@ -811,7 +754,7 @@ def buscar_vinculo(aluno_id, responsavel_id):
     with cursor() as cur:
         cur.execute(
             """SELECT aluno_id_aluno AS aluno_id, responsavel_id_responsavel AS responsavel_id, tipo_responsavel,
-                responsavel_financeiro
+                responsavel_financeiro, criado_em, atualizado_em
                 FROM alunoresponsavel WHERE aluno_id_aluno = %s AND responsavel_id_responsavel = %s""",
             (aluno_id, responsavel_id),
         )
@@ -831,23 +774,26 @@ def desvincular_responsavel(aluno_id, responsavel_id) -> bool:
 # GRADE CURRICULAR (turma <-> materia <-> professor)
 # ===========================================================================
 
-def inserir_grade(turma_id, materia_id, professor_id):
+def inserir_grade(turma_id, materia_id, professor_id, carga_horaria_semanal=None):
     with cursor(commit=True) as cur:
         cur.execute(
-            """INSERT INTO grade_curricular (turma_id_turma, materia_id_materia, professor_id_professor)
-               VALUES (%s, %s, %s) RETURNING id_grade""",
-            (turma_id, materia_id, professor_id),
+            """INSERT INTO grade_curricular
+                   (turma_id_turma, materia_id_materia, professor_id_professor, carga_horaria_semanal)
+               VALUES (%s, %s, %s, %s) RETURNING id_grade""",
+            (turma_id, materia_id, professor_id, carga_horaria_semanal),
         )
         novo_id = cur.fetchone()["id_grade"]
         cur.execute("""SELECT id_grade, turma_id_turma AS turma_id, materia_id_materia AS materia_id,
-                professor_id_professor AS professor_id
+                professor_id_professor AS professor_id,
+                carga_horaria_semanal, criado_em, atualizado_em
                 FROM grade_curricular WHERE id_grade = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_grades(turma_id: int | None = None):
     query = """SELECT id_grade, turma_id_turma AS turma_id, materia_id_materia AS materia_id,
-                professor_id_professor AS professor_id
+                professor_id_professor AS professor_id,
+                carga_horaria_semanal, criado_em, atualizado_em
                 FROM grade_curricular WHERE 1=1"""
     params = []
     if turma_id is not None:
@@ -862,11 +808,28 @@ def listar_grades(turma_id: int | None = None):
 def buscar_grade(id_grade):
     with cursor() as cur:
         cur.execute("""SELECT id_grade, turma_id_turma AS turma_id, materia_id_materia AS materia_id,
-                professor_id_professor AS professor_id
+                professor_id_professor AS professor_id,
+                carga_horaria_semanal, criado_em, atualizado_em
                 FROM grade_curricular WHERE id_grade = %s""", (id_grade,))
         return cur.fetchone()
 
+_COLUNAS_DB_GRADE = {
+    "turma_id": "turma_id_turma",
+    "materia_id": "materia_id_materia",
+    "professor_id": "professor_id_professor",
+}
 
+
+def atualizar_grade(id_grade: int, campos: dict):
+    set_clause = ", ".join(f"{_COLUNAS_DB_GRADE.get(c, c.lower())} = %s" for c in campos)
+    with cursor(commit=True) as cur:
+        cur.execute(f"UPDATE grade_curricular SET {set_clause} WHERE id_grade = %s", (*campos.values(), id_grade))
+        cur.execute("""SELECT id_grade, turma_id_turma AS turma_id, materia_id_materia AS materia_id,
+                professor_id_professor AS professor_id,
+                carga_horaria_semanal, criado_em, atualizado_em
+                FROM grade_curricular WHERE id_grade = %s""", (id_grade,))
+        return cur.fetchone()
+    
 def excluir_grade(id_grade) -> bool:
     with cursor(commit=True) as cur:
         cur.execute("DELETE FROM grade_curricular WHERE id_grade = %s", (id_grade,))
@@ -887,7 +850,7 @@ def inserir_avaliacao(grade_id, periodo_id, tipo, nome, data_avaliacao, peso):
         novo_id = cur.fetchone()["id_avaliacao"]
         cur.execute("""SELECT id_avaliacao, grade_id_grade AS grade_id, periodo_id_periodo AS periodo_id,
                 tipo, nome_avaliacao, data_avaliacao,
-                peso
+                peso, criado_em, atualizado_em
                 FROM avaliacao WHERE id_avaliacao = %s""", (novo_id,))
         return cur.fetchone()
 
@@ -895,7 +858,7 @@ def inserir_avaliacao(grade_id, periodo_id, tipo, nome, data_avaliacao, peso):
 def listar_avaliacoes(grade_id: int | None = None, periodo_id: int | None = None):
     query = """SELECT id_avaliacao, grade_id_grade AS grade_id, periodo_id_periodo AS periodo_id,
                 tipo, nome_avaliacao, data_avaliacao,
-                peso
+                peso, criado_em, atualizado_em
                 FROM avaliacao WHERE 1=1"""
     params = []
     if grade_id is not None:
@@ -914,7 +877,7 @@ def buscar_avaliacao(id_avaliacao):
     with cursor() as cur:
         cur.execute("""SELECT id_avaliacao, grade_id_grade AS grade_id, periodo_id_periodo AS periodo_id,
                 tipo, nome_avaliacao, data_avaliacao,
-                peso
+                peso, criado_em, atualizado_em
                 FROM avaliacao WHERE id_avaliacao = %s""", (id_avaliacao,))
         return cur.fetchone()
 
@@ -928,7 +891,7 @@ def atualizar_avaliacao(id_avaliacao, campos: dict):
         cur.execute(f"UPDATE avaliacao SET {set_clause} WHERE id_avaliacao = %s", (*campos.values(), id_avaliacao))
         cur.execute("""SELECT id_avaliacao, grade_id_grade AS grade_id, periodo_id_periodo AS periodo_id,
                 tipo, nome_avaliacao, data_avaliacao,
-                peso
+                peso, criado_em, atualizado_em
                 FROM avaliacao WHERE id_avaliacao = %s""", (id_avaliacao,))
         return cur.fetchone()
 
@@ -943,21 +906,22 @@ def excluir_avaliacao(id_avaliacao) -> bool:
 # NOTA
 # ===========================================================================
 
-def inserir_nota(avaliacao_id, aluno_id, valor):
+def inserir_nota(avaliacao_id, aluno_id, valor, observacao=None):
     with cursor(commit=True) as cur:
         cur.execute(
-            "INSERT INTO nota (avaliacao_id_avaliacao, aluno_id_aluno, valor_nota) VALUES (%s, %s, %s) RETURNING id_nota",
-            (avaliacao_id, aluno_id, valor),
+            """INSERT INTO nota (avaliacao_id_avaliacao, aluno_id_aluno, valor_nota, observacao)
+               VALUES (%s, %s, %s, %s) RETURNING id_nota""",
+            (avaliacao_id, aluno_id, valor, observacao),
         )
         novo_id = cur.fetchone()["id_nota"]
         cur.execute("""SELECT id_nota, avaliacao_id_avaliacao AS avaliacao_id, aluno_id_aluno AS aluno_id,
-                valor_nota
+                valor_nota, observacao, criado_em, atualizado_em
                 FROM nota WHERE id_nota = %s""", (novo_id,))
         return cur.fetchone()
 
 def listar_notas(avaliacao_id: int | None = None, aluno_id: int | None = None):
     query = """SELECT id_nota, avaliacao_id_avaliacao AS avaliacao_id, aluno_id_aluno AS aluno_id,
-                valor_nota
+                valor_nota, observacao, criado_em, atualizado_em
                 FROM nota WHERE 1=1"""
     params = []
     if avaliacao_id is not None:
@@ -975,7 +939,7 @@ def listar_notas(avaliacao_id: int | None = None, aluno_id: int | None = None):
 def buscar_nota(id_nota):
     with cursor() as cur:
         cur.execute("""SELECT id_nota, avaliacao_id_avaliacao AS avaliacao_id, aluno_id_aluno AS aluno_id,
-                valor_nota
+                valor_nota, observacao, criado_em, atualizado_em
                 FROM nota WHERE id_nota = %s""", (id_nota,))
         return cur.fetchone()
 
@@ -985,7 +949,7 @@ def atualizar_nota(id_nota, campos: dict):
     with cursor(commit=True) as cur:
         cur.execute(f"UPDATE nota SET {set_clause} WHERE id_nota = %s", (*campos.values(), id_nota))
         cur.execute("""SELECT id_nota, avaliacao_id_avaliacao AS avaliacao_id, aluno_id_aluno AS aluno_id,
-                valor_nota
+                valor_nota, observacao, criado_em, atualizado_em
                 FROM nota WHERE id_nota = %s""", (id_nota,))
         return cur.fetchone()
 
@@ -1000,23 +964,23 @@ def excluir_nota(id_nota) -> bool:
 # FREQUENCIA
 # ===========================================================================
 
-def inserir_frequencia(grade_id, aluno_id, data_frequencia, situacao):
+def inserir_frequencia(grade_id, aluno_id, data_frequencia, situacao, justificativa=None):
     with cursor(commit=True) as cur:
         cur.execute(
-            """INSERT INTO frequencia (grade_id_grade, aluno_id_aluno, data_frequencia, situacao)
-               VALUES (%s, %s, %s, %s) RETURNING id_frequencia""",
-            (grade_id, aluno_id, data_frequencia, situacao),
+            """INSERT INTO frequencia (grade_id_grade, aluno_id_aluno, data_frequencia, situacao, justificativa)
+               VALUES (%s, %s, %s, %s, %s) RETURNING id_frequencia""",
+            (grade_id, aluno_id, data_frequencia, situacao, justificativa),
         )
         novo_id = cur.fetchone()["id_frequencia"]
         cur.execute("""SELECT id_frequencia, grade_id_grade AS grade_id, aluno_id_aluno AS aluno_id,
-                data_frequencia, situacao
+                data_frequencia, situacao, justificativa, criado_em, atualizado_em
                 FROM frequencia WHERE id_frequencia = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_frequencias(grade_id: int | None = None, aluno_id: int | None = None):
     query = """SELECT id_frequencia, grade_id_grade AS grade_id, aluno_id_aluno AS aluno_id,
-                data_frequencia, situacao
+                data_frequencia, situacao, justificativa, criado_em, atualizado_em
                 FROM frequencia WHERE 1=1"""
     params = []
     if grade_id is not None:
@@ -1034,7 +998,7 @@ def listar_frequencias(grade_id: int | None = None, aluno_id: int | None = None)
 def buscar_frequencia(id_frequencia):
     with cursor() as cur:
         cur.execute("""SELECT id_frequencia, grade_id_grade AS grade_id, aluno_id_aluno AS aluno_id,
-                data_frequencia, situacao
+                data_frequencia, situacao, justificativa, criado_em, atualizado_em
                 FROM frequencia WHERE id_frequencia = %s""", (id_frequencia,))
         return cur.fetchone()
 
@@ -1047,7 +1011,7 @@ def atualizar_frequencia(id_frequencia, campos: dict):
             (*campos.values(), id_frequencia),
         )
         cur.execute("""SELECT id_frequencia, grade_id_grade AS grade_id, aluno_id_aluno AS aluno_id,
-                data_frequencia, situacao
+                data_frequencia, situacao, justificativa, criado_em, atualizado_em
                 FROM frequencia WHERE id_frequencia = %s""", (id_frequencia,))
         return cur.fetchone()
 
@@ -1071,14 +1035,14 @@ def inserir_boletim(aluno_id, periodo_id, materia_id, media_final, situacao):
         )
         novo_id = cur.fetchone()["id_boletim"]
         cur.execute("""SELECT id_boletim, aluno_id_aluno AS aluno_id, periodo_id_periodo AS periodo_id,
-                materia_id_materia AS materia_id, media_final, situacao
+                materia_id_materia AS materia_id, media_final, situacao, criado_em, atualizado_em
                 FROM boletim WHERE id_boletim = %s""", (novo_id,))
         return cur.fetchone()
 
 
 def listar_boletins(aluno_id: int | None = None, periodo_id: int | None = None):
     query = """SELECT id_boletim, aluno_id_aluno AS aluno_id, periodo_id_periodo AS periodo_id,
-                materia_id_materia AS materia_id, media_final, situacao
+                materia_id_materia AS materia_id, media_final, situacao, criado_em, atualizado_em
                 FROM boletim WHERE 1=1"""
     params = []
     if aluno_id is not None:
@@ -1096,7 +1060,7 @@ def listar_boletins(aluno_id: int | None = None, periodo_id: int | None = None):
 def buscar_boletim(id_boletim):
     with cursor() as cur:
         cur.execute("""SELECT id_boletim, aluno_id_aluno AS aluno_id, periodo_id_periodo AS periodo_id,
-                materia_id_materia AS materia_id, media_final, situacao
+                materia_id_materia AS materia_id, media_final, situacao, criado_em, atualizado_em
                 FROM boletim WHERE id_boletim = %s""", (id_boletim,))
         return cur.fetchone()
 
@@ -1106,7 +1070,7 @@ def atualizar_boletim(id_boletim, campos: dict):
     with cursor(commit=True) as cur:
         cur.execute(f"UPDATE boletim SET {set_clause} WHERE id_boletim = %s", (*campos.values(), id_boletim))
         cur.execute("""SELECT id_boletim, aluno_id_aluno AS aluno_id, periodo_id_periodo AS periodo_id,
-                materia_id_materia AS materia_id, media_final, situacao
+                materia_id_materia AS materia_id, media_final, situacao, criado_em, atualizado_em
                 FROM boletim WHERE id_boletim = %s""", (id_boletim,))
         return cur.fetchone()
 
@@ -1131,7 +1095,7 @@ def inserir_boleto(numero_boleto, aluno_id, competencia, valor, data_vencimento,
         novo_id = cur.fetchone()["id_boleto"]
         cur.execute("""SELECT id_boleto, numero_boleto, aluno_id_aluno AS aluno_id,
                 competencia, valor_mensalidade, data_vencimento,
-                data_pagamento, situacao
+                data_pagamento, situacao, criado_em, atualizado_em
                 FROM boleto WHERE id_boleto = %s""", (novo_id,))
         return cur.fetchone()
 
@@ -1139,7 +1103,7 @@ def inserir_boleto(numero_boleto, aluno_id, competencia, valor, data_vencimento,
 def listar_boletos(aluno_id: int | None = None, situacao: str | None = None):
     query = """SELECT id_boleto, numero_boleto, aluno_id_aluno AS aluno_id,
                 competencia, valor_mensalidade, data_vencimento,
-                data_pagamento, situacao
+                data_pagamento, situacao, criado_em, atualizado_em
                 FROM boleto WHERE 1=1"""
     params = []
     if aluno_id is not None:
@@ -1158,7 +1122,7 @@ def buscar_boleto(id_boleto):
     with cursor() as cur:
         cur.execute("""SELECT id_boleto, numero_boleto, aluno_id_aluno AS aluno_id,
                 competencia, valor_mensalidade, data_vencimento,
-                data_pagamento, situacao
+                data_pagamento, situacao, criado_em, atualizado_em
                 FROM boleto WHERE id_boleto = %s""", (id_boleto,))
         return cur.fetchone()
 
@@ -1169,7 +1133,7 @@ def atualizar_boleto(id_boleto, campos: dict):
         cur.execute(f"UPDATE boleto SET {set_clause} WHERE id_boleto = %s", (*campos.values(), id_boleto))
         cur.execute("""SELECT id_boleto, numero_boleto, aluno_id_aluno AS aluno_id,
                 competencia, valor_mensalidade, data_vencimento,
-                data_pagamento, situacao
+                data_pagamento, situacao, criado_em, atualizado_em
                 FROM boleto WHERE id_boleto = %s""", (id_boleto,))
         return cur.fetchone()
 
